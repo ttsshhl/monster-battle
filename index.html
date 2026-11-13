@@ -47,6 +47,9 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
 .ibtn svg{width:15px;height:15px}
 .mtag{text-align:center;font-size:15px;color:var(--t2);font-weight:500}
 .quirk{text-align:center;font-size:13px;color:var(--t3);margin-top:3px}
+.agel{display:flex;justify-content:center;gap:6px;margin-top:8px;flex-wrap:wrap}.agel span{background:rgba(255,255,255,.08);border-radius:99px;padding:4px 10px;font-size:13px;font-weight:600;color:var(--t2)}.agel span.gold{background:rgba(255,214,10,.16);color:#FFD60A}
+.awards{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:8px 0 4px}.awards div{background:rgba(255,255,255,.06);border-radius:12px;padding:7px 2px;text-align:center;font-size:22px;line-height:1.1}.awards div small{display:block;font-size:10px;color:var(--t3);margin-top:3px}.awards div.lock{filter:grayscale(1);opacity:.35}
+.awh{font-size:13px;color:var(--t2);font-weight:600;margin:10px 2px 0}
 .xp{height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin:14px 0 5px}
 .xp i{display:block;height:100%;background:linear-gradient(90deg,var(--ac),#b18cff);border-radius:3px;transition:width .5s}
 .xpl{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);font-weight:500}
@@ -180,6 +183,7 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
   <div class="mname"><span id="hName"></span><button class="ibtn" id="hRename" data-i="pencil"></button></div>
   <div class="mtag" id="hTag"></div>
   <div class="quirk" id="hQuirk"></div>
+  <div class="agel" id="hAge"></div>
   <div class="xp"><i id="hXp"></i></div>
   <div class="xpl"><span id="hLv"></span><span id="hNext"></span></div>
   <div class="row2" style="margin-top:16px"><button class="btn" id="hFight" data-i="swords">В бой</button><button class="btn gray" id="hTrain" data-i="target">Тренировка</button></div>
@@ -379,6 +383,22 @@ const BREED_COST = 150, PAINT_COINS = 300;
 const stageOf = lv => { let s = 0; STAGES.forEach((st, i) => { if (lv >= st.min) s = i; }); return s; };
 const xpNeed = lv => 40 + lv * 25;
 const quirkOf = m => QUIRKS[(m.seed >> 2) % QUIRKS.length];
+/* ---- возраст и юбилеи, боевые отметины ---- */
+const DAY = 864e5;
+const JUBS = [null, { d: 7, n: 'Праздничная розетка', e: '🎖️', t: 'Неделя вместе' }, { d: 30, n: 'Юбилейный шарф', e: '🧣', t: 'Месяц вместе' },
+  { d: 100, n: 'Лавровый венок', e: '🌿', t: '100 дней вместе' }, { d: 365, n: 'Золотой нимб', e: '😇', t: 'Год вместе' }];
+const MARKS = [null, { w: 10, n: 'Пластырь', e: '🩹', t: 'первые 10 побед' }, { w: 25, n: 'Боевые царапины', e: '🐾', t: '25 побед' },
+  { w: 50, n: 'Шрам ветерана', e: '⚔️', t: '50 побед' }, { w: 100, n: 'Бронзовая медаль', e: '🥉', t: '100 побед' },
+  { w: 250, n: 'Серебряная медаль', e: '🥈', t: '250 побед' }, { w: 500, n: 'Золотая медаль', e: '🥇', t: '500 побед' }];
+const ageDays = m => m.born ? Math.max(0, Math.floor((Date.now() - m.born) / DAY)) : 0;
+const jubTier = m => m.jt != null ? m.jt : JUBS.reduce((a, j, i) => j && ageDays(m) >= j.d ? i : a, 0);
+const markTier = m => m.mt != null ? m.mt : MARKS.reduce((a, x, i) => x && (m.w || 0) >= x.w ? i : a, 0);
+const dayWord = n => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? 'день' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'дня' : 'дней'; };
+const winWord = n => { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? 'победа' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'победы' : 'побед'; };
+function bornFromId(m) {
+  const id = String(m.id || ''); const raw = id.endsWith('r') ? id.slice(0, -1) : id.slice(0, -3);
+  const t = parseInt(raw, 36); return t > 1.7e12 && t <= Date.now() ? t : Date.now();
+}
 function speciesLabel(m) {
   if (m.sp2 < 0 || m.sp2 === m.sp) return SPECIES[m.sp].name;
   return SPECIES[m.sp].pre + SPECIES[m.sp2].suf;
@@ -390,7 +410,7 @@ function newMon(sp, o = {}) {
     h1: o.h1 != null ? o.h1 : ri(0, 359), h2: o.h2 != null ? o.h2 : ri(0, 359),
     pat: o.pat != null ? o.pat : ri(0, 4), eye: o.eye != null ? o.eye : (Math.random() < 0.1 ? 4 : ri(0, 3)),
     mouth: o.mouth != null ? o.mouth : ri(0, 4), acc: o.acc || 0, eff: o.eff || 0, mut: o.mut || 0,
-    seed, name: o.name || NAMES[seed % NAMES.length], w: 0, l: 0,
+    seed, name: o.name || NAMES[seed % NAMES.length], w: 0, l: 0, born: Date.now(),
   };
 }
 
@@ -414,6 +434,7 @@ async function load() {
   }
   const best = [loc, cl].filter(x => x && x.mons).sort((a, b) => b.ts - a.ts)[0];
   if (best) S = Object.assign(S, best);
+  S.mons.forEach(m => { if (!m.born) m.born = bornFromId(m); if (m.jc == null) m.jc = jubTier(m) > 0 ? jubTier(m) - 1 : 0; });
 }
 const act = () => S.mons[S.active] || S.mons[0];
 
@@ -1153,7 +1174,9 @@ function frontLayer(g, P, A) {
   if (P.f2 && m.sp !== 2) { const { x, y } = A.neck; g.fillStyle = pal.acc; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 15, y - 9); g.lineTo(x - 15, y + 9); g.closePath(); g.moveTo(x, y); g.lineTo(x + 15, y - 9); g.lineTo(x + 15, y + 9); g.closePath(); g.fill(); g.lineWidth = 1.6; g.strokeStyle = pal.line; g.stroke(); circ(g, x, y, 4, pal.accLo); const e = A.eyes[A.eyes.length - 1]; g.beginPath(); g.arc(e.x, e.y, e.r * 1.35, 0, 7); g.lineWidth = 2.4; g.strokeStyle = '#ffcf40'; g.stroke(); }
   if (m.acc === 3) { g.fillStyle = '#100a14'; A.eyes.forEach(e => { g.beginPath(); rr(g, e.x - e.r * 1.35, e.y - e.r * 0.8, e.r * 2.7, e.r * 1.6, e.r * 0.5); g.fill(); g.lineWidth = 1.6; g.strokeStyle = '#000'; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(e.x - e.r * 0.8, e.y - e.r * 0.35); g.lineTo(e.x - e.r * 0.2, e.y - e.r * 0.35); g.stroke(); }); if (A.eyes.length > 1) { const [a, b] = A.eyes; g.beginPath(); g.moveTo(a.x + a.r * 1.3, a.y - a.r * 0.3); g.lineTo(b.x - b.r * 1.3, b.y - b.r * 0.3); g.lineWidth = 2.5; g.strokeStyle = '#100a14'; g.stroke(); } }
   if (m.acc === 6) { const { x, y } = A.neck; g.beginPath(); g.moveTo(x - 30, y - 10); g.quadraticCurveTo(x, y + 22, x + 30, y - 10); g.setLineDash([5, 2.5]); g.lineWidth = 5; g.strokeStyle = '#ffcc33'; g.stroke(); g.setLineDash([]); circ(g, x, y + 12, 8, '#ffcc33'); g.lineWidth = 1.6; g.strokeStyle = '#7a5a00'; g.stroke(); g.fillStyle = '#8a6400'; g.font = '900 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', x, y + 13); }
+  bodyMarks(g, P, A);
   g.save(); g.translate(H.x, H.y); g.scale(k, k);
+  headMarks(g, P, T, false);
   if (m.mut & 2) { horn(g, -12, T + 10, 24, -2.1, -0.4, 10, '#fff1d6', '#7e5e38'); horn(g, 8, T + 8, 26, -1.5, -0.4, 11, '#fff1d6', '#7e5e38'); }
   if (m.mut & 4) [-8, 8].forEach((x, i) => { const ex = x * 2.2 + Math.sin(t * 3 + i) * 4, ey = T - 30; g.beginPath(); g.moveTo(x, T + 4); g.quadraticCurveTo(x * 1.2, ey + 6, ex, ey); g.lineWidth = 2.4; g.strokeStyle = OUT; g.stroke(); g.save(); g.shadowColor = pal.accHi; g.shadowBlur = 10; circ(g, ex, ey, 5.5, pal.accHi); g.restore(); });
   if (m.mut & 1) eyeD(g, 6, T + 16, 8, P, { skin: pal.base });
@@ -1174,10 +1197,75 @@ function frontLayer(g, P, A) {
     if (m.sp === 3 && P.stage >= 2) { g.beginPath(); g.moveTo(0, T - 4); g.quadraticCurveTo(4, T - 20, 12, T - 24); g.lineWidth = 2; g.strokeStyle = '#3d6b2a'; g.stroke(); circ(g, 0, T - 4, 7, '#e8203a'); g.lineWidth = 1.6; g.strokeStyle = OUT; g.stroke(); circ(g, -2, T - 6, 2, '#fff9'); }
     if (m.sp === 5 && P.stage >= 4) { g.beginPath(); g.ellipse(0, T - 26, 22, 6, 0, 0, 7); g.lineWidth = 4; g.strokeStyle = '#ffe066'; g.shadowColor = '#ffe066'; g.shadowBlur = 12; g.stroke(); g.shadowBlur = 0; }
   }
+  headMarks(g, P, T, true);
   if (P.dizzy > 0) for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; star(g, Math.cos(a) * 28, T - 8 + Math.sin(a) * 7, 6, '#ffe066'); }
   g.restore();
   sweatD(g, P, A);
   effectsFront(g, P);
+}
+
+/* ---- отметины и юбилейные регалии ---- */
+function bodyMarks(g, P, A) {
+  const m = P.m, mt = markTier(m), jt = m.noReg ? 0 : jubTier(m); if (!mt && !jt) return;
+  const c = A.c || [0, 30], nk = A.neck, ln = P.pal.line || OUT;
+  g.save();
+  if (mt >= 2) { // боевые царапины на теле
+    const x0 = c[0] + 4, y0 = c[1] - 8; g.lineCap = 'round';
+    for (let i = 0; i < 3; i++) { const x = x0 + i * 7, y = y0 + i * 2; g.beginPath(); g.moveTo(x - 6, y - 9); g.lineTo(x + 6, y + 9); g.lineWidth = 4.2; g.strokeStyle = 'rgba(70,20,30,.45)'; g.stroke(); g.lineWidth = 2; g.strokeStyle = 'rgba(255,190,190,.85)'; g.stroke(); }
+  }
+  if (mt >= 3 && A.eyes && A.eyes.length) { // шрам через глаз
+    const e = A.eyes[A.eyes.length - 1]; g.save(); g.beginPath(); g.rect(-400, -400, 800, 800); g.arc(e.x, e.y, e.r * 1.04, 0, 7); g.clip('evenodd');
+    const x1 = e.x - e.r * 0.55, y1 = e.y - e.r * 1.9, x2 = e.x + e.r * 0.35, y2 = e.y + e.r * 1.75;
+    g.lineCap = 'round'; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineWidth = e.r * 0.34; g.strokeStyle = 'rgba(80,20,30,.5)'; g.stroke(); g.lineWidth = e.r * 0.17; g.strokeStyle = '#f2a5a5'; g.stroke();
+    for (const u of [0.12, 0.85]) { const x = x1 + (x2 - x1) * u, y = y1 + (y2 - y1) * u; g.beginPath(); g.moveTo(x - e.r * 0.3, y - e.r * 0.05); g.lineTo(x + e.r * 0.3, y + e.r * 0.05); g.lineWidth = 1.4; g.strokeStyle = 'rgba(90,30,40,.8)'; g.stroke(); }
+    g.restore();
+  }
+  if (mt >= 1 && A.eyes && A.eyes.length) { // пластырь крест-накрест на щеке, под дальним глазом
+    const e = A.eyes[0], kk = Math.max(0.7, Math.min(1.3, A.head ? A.head.r / 40 : 1));
+    g.save(); g.translate(e.x - e.r * 0.9, e.y + e.r * 1.55); g.scale(kk * 0.85, kk * 0.85); g.rotate(-0.5);
+    for (const r of [0, Math.PI / 2]) { g.save(); g.rotate(r); g.beginPath(); rr(g, -11, -4, 22, 8, 3); g.fillStyle = '#f3d2a8'; g.fill(); g.lineWidth = 1.3; g.strokeStyle = OUT; g.stroke(); g.restore(); }
+    g.fillStyle = 'rgba(150,100,60,.55)'; for (const [dx, dy] of [[-2, -1], [2, 1], [2, -1], [-2, 1]]) circ(g, dx, dy, 0.8);
+    g.restore();
+  }
+  if (jt >= 1) { // розетка «неделя вместе»
+    const x = c[0] - 20, y = c[1] + 2;
+    [[-4, 1], [4, 1]].forEach(([dx]) => { g.beginPath(); g.moveTo(x + dx * 0.6, y + 4); g.lineTo(x + dx * 2.2, y + 20); g.lineTo(x + dx * 0.6 + dx * 0.2, y + 16); g.lineTo(x + dx * 0.2, y + 20); g.closePath(); g.fillStyle = '#e8203a'; g.fill(); g.lineWidth = 1.2; g.strokeStyle = OUT; g.stroke(); });
+    g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, r = i % 2 ? 9 : 11; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } g.closePath(); g.fillStyle = '#2f7cf6'; g.fill(); g.lineWidth = 1.4; g.strokeStyle = OUT; g.stroke();
+    circ(g, x, y, 6, '#ffd34d'); g.fillStyle = '#7a4a00'; g.font = '900 8px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('7', x, y + 0.5);
+  }
+  if (jt >= 2 && nk) { // юбилейный шарф
+    const { x, y } = nk; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x - 24, y - 6); g.quadraticCurveTo(x, y + 12, x + 24, y - 6); g.lineWidth = 11; g.strokeStyle = OUT; g.stroke(); g.lineWidth = 8; g.strokeStyle = '#e8203a'; g.stroke();
+    g.setLineDash([4, 5]); g.lineWidth = 8; g.strokeStyle = '#fff'; g.stroke(); g.setLineDash([]);
+    g.beginPath(); g.moveTo(x - 10, y + 4); g.quadraticCurveTo(x - 16, y + 18, x - 12, y + 30); g.lineWidth = 9; g.strokeStyle = OUT; g.stroke(); g.lineWidth = 6.5; g.strokeStyle = '#e8203a'; g.stroke();
+    g.beginPath(); g.moveTo(x - 15, y + 26); g.lineTo(x - 9, y + 26); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke();
+  }
+  if (mt >= 4 && nk) { // медаль
+    const x = nk.x + (m.acc === 6 ? 20 : 4), y = nk.y + 4, col = mt >= 6 ? ['#fff2a8', '#d99a00'] : mt >= 5 ? ['#ffffff', '#9aa3b2'] : ['#ffc999', '#a8592a'];
+    g.beginPath(); g.moveTo(x - 9, y - 6); g.lineTo(x - 3, y + 10); g.lineTo(x + 3, y + 10); g.lineTo(x + 9, y - 6); g.closePath(); g.fillStyle = mt >= 6 ? '#e8203a' : '#2f7cf6'; g.fill(); g.lineWidth = 1.3; g.strokeStyle = OUT; g.stroke();
+    const mg = g.createRadialGradient(x - 3, y + 13, 1, x, y + 16, 10); mg.addColorStop(0, col[0]); mg.addColorStop(1, col[1]);
+    g.beginPath(); g.arc(x, y + 17, 8.5, 0, 7); g.fillStyle = mg; g.fill(); g.lineWidth = 1.6; g.strokeStyle = OUT; g.stroke();
+    star(g, x, y + 17, 4.6, 'rgba(255,255,255,.75)');
+  }
+  g.restore();
+}
+function headMarks(g, P, T, front) {
+  const m = P.m, mt = markTier(m), jt = m.noReg ? 0 : jubTier(m), t = P.t;
+  if (!front) {
+    if (jt >= 3) { // лавровый венок на макушке
+      const cy = T + 12, rx = 29, ry = 9;
+      for (let i = 0; i <= 12; i++) { const a = Math.PI * (1 - i / 12), x = Math.cos(a) * rx, y = cy + Math.sin(a) * ry * (i === 6 ? 1 : 1);
+        g.save(); g.translate(x, y); g.rotate((i < 6 ? -1 : 1) * 0.9 + (i - 6) * 0.08); g.beginPath(); g.ellipse(0, -3, 3.6, 8, 0, 0, 7); g.fillStyle = i % 2 ? '#4caf50' : '#2e8b3a'; g.fill(); g.lineWidth = 1.2; g.strokeStyle = OUT; g.stroke(); g.restore(); }
+      for (const x of [-12, 0, 12]) { circ(g, x, cy + ry * 0.9, 2.4, '#ffd34d'); g.lineWidth = 1; g.strokeStyle = OUT; g.stroke(); }
+    }
+    return;
+  }
+  if (jt >= 4) { // золотой нимб
+    const y = T - 24 - Math.sin(t * 2) * 2, extra = m.sp === 5 && P.stage >= 4 ? -12 : 0;
+    g.save(); g.shadowColor = '#ffe066'; g.shadowBlur = 14; g.beginPath(); g.ellipse(0, y + extra, 24, 6.5, 0, 0, 7); g.lineWidth = 5; g.strokeStyle = '#ffd34d'; g.stroke(); g.restore();
+    g.beginPath(); g.ellipse(0, y + extra, 24, 6.5, 0, 0, 7); g.lineWidth = 1.5; g.strokeStyle = '#fff6c8'; g.stroke();
+    for (let i = 0; i < 3; i++) { const a = t * 1.5 + i * 2.1; star(g, Math.cos(a) * 24, y + extra + Math.sin(a) * 6.5, 3, '#fff'); }
+  }
 }
 
 /* ---- точка входа: рисуем существо в буфер и переносим с подсветкой/вспышкой ---- */
@@ -1333,6 +1421,10 @@ function renderHome() {
   const st = stageOf(m.lv);
   $('#hTag').textContent = `${speciesLabel(m)}${m.sp2 >= 0 && m.sp2 !== m.sp ? ' (гибрид)' : ''} • ${STAGES[st].name}`;
   $('#hQuirk').textContent = 'Характер: ' + quirkOf(m);
+  const ad = ageDays(m), mt = markTier(m), jt = jubTier(m);
+  $('#hAge').innerHTML = `<span${jt ? ' class="gold"' : ''}>${jt ? JUBS[jt].e : '🎂'} ${ad ? ad + ' ' + dayWord(ad) + ' вместе' : 'первый день вместе'}</span><span>${mt ? MARKS[mt].e : '⚔️'} ${m.w || 0} ${winWord(m.w || 0)}</span>`;
+  $('#hAge').onclick = () => monMenu(S.active);
+  setTimeout(checkJubilee, 600);
   $('#hXp').style.width = Math.round(m.xp / xpNeed(m.lv) * 100) + '%';
   $('#hLv').textContent = `Уровень ${m.lv}`;
   const nx = STAGES[st + 1]; $('#hNext').textContent = nx ? `превращение на ур. ${nx.min}` : 'максимальная форма';
@@ -1384,7 +1476,7 @@ function renderPen() {
   S.mons.forEach((m, i) => {
     const d = document.createElement('div'); d.className = 'card mon' + (i === S.active ? ' act' : '');
     d.appendChild(miniCanvas(m));
-    d.insertAdjacentHTML('beforeend', `${i === S.active ? '<div class="badge">ГЛАВНЫЙ</div>' : ''}<div class="n">${esc(m.name)}</div><div class="s">${speciesLabel(m)} • ур.${m.lv}</div>`);
+    d.insertAdjacentHTML('beforeend', `${i === S.active ? '<div class="badge">ГЛАВНЫЙ</div>' : ''}<div class="n">${esc(m.name)}</div><div class="s">${speciesLabel(m)} • ур.${m.lv}<br>🎂 ${ageDays(m)} дн. • ⚔️ ${m.w || 0}</div>`);
     d.onclick = () => monMenu(i); g.appendChild(d);
   });
   for (let i = S.mons.length; i < S.slots; i++) g.insertAdjacentHTML('beforeend', '<div class="card empty">свободно<br>🥚</div>');
@@ -1397,6 +1489,7 @@ function monMenu(i) {
   <button class="btn pink" id="mmC2">Вызвать друга этим монстром</button>
   <button class="btn ghost" id="mmR">Переименовать</button>
   ${S.mons.length > 1 ? '<button class="btn ghost" id="mmD">Отпустить на волю</button>' : ''}</div>`);
+  const stk = sh.querySelector('.stack'); stk.insertAdjacentHTML('beforebegin', awardsHtml(m)); const tg2 = sh.querySelector('#mmReg'); if (tg2) tg2.onchange = e => { m.noReg = !e.target.checked; save(); closeSheet(); monMenu(i); if (cur === 'home') renderHome(); };
   const c = miniCanvas(m, 200); c.style.width = '150px'; sh.querySelector('#mmC').appendChild(c);
   const a = sh.querySelector('#mmA'); if (a) a.onclick = () => { S.active = i; save(); closeSheet(); renderPen(); toast(m.name + ' теперь главный!'); };
   sh.querySelector('#mmC2').onclick = () => { closeSheet(); shareChallenge(m); };
@@ -1502,6 +1595,39 @@ async function renderTop() {
 function openTop(by) { if (by) topBy = by; pushScore(true); show('top'); setTimeout(renderTop, lbOn() ? 350 : 0); }
 document.querySelectorAll('#topSeg button').forEach(b => b.onclick = () => { topBy = b.dataset.by; hap('light'); renderTop(); });
 $('#hTop').onclick = () => openTop(); $('#hRec').onclick = () => openTop('wins'); $('#topBack').onclick = () => show(backStack.pop() || 'home', false);
+
+/* ================== ЮБИЛЕИ И ОТМЕТИНЫ ================== */
+function awardsHtml(m) {
+  const ad = ageDays(m), jt = jubTier(m), mt = markTier(m), w = m.w || 0;
+  const nj = JUBS[jt + 1], nm = MARKS[mt + 1];
+  const cell = (x, got, lbl) => `<div class="${got ? '' : 'lock'}">${x.e}<small>${lbl}</small></div>`;
+  return `<div class="awh">🎂 Юбилеи — ${ad} ${dayWord(ad)} вместе${nj ? ` · до следующего ${nj.d - ad} ${dayWord(nj.d - ad)}` : ''}</div>
+  <div class="awards" style="grid-template-columns:repeat(4,1fr)">${JUBS.slice(1).map((j, i) => cell(j, jt > i, j.d + ' дн.')).join('')}</div>
+  <div class="awh">⚔️ Отметины — ${w} ${winWord(w)}${nm ? ` · до «${nm.n}» ${nm.w - w}` : ''}</div>
+  <div class="awards" style="grid-template-columns:repeat(6,1fr)">${MARKS.slice(1).map((x, i) => cell(x, mt > i, x.w)).join('')}</div>
+  <p style="font-size:12px;color:var(--t3);text-align:center;margin:4px 0 8px">Их нельзя купить — только прожить и заработать с этим монстром.</p>
+  ${jt ? `<label class="sw-row"><i class="ic" style="--c:#FF9F0A">${svgI('trophy')}</i><span>Показывать юбилейные регалии</span><input type="checkbox" id="mmReg" ${m.noReg ? '' : 'checked'}><b class="sw"></b></label>` : ''}`;
+}
+function jubSound() { if (!eggOk()) return; const t = AU.ctx.currentTime; [0, 4, 7, 12, 16, 19, 24].forEach((k, i) => bell(nf(72 + k), t + i * 0.08, 0.05, 'f', 1.6)); thump(t, 200, 80, 0.2, 0.4); }
+let jubBusy = false;
+function checkJubilee() {
+  if (jubBusy || cur !== 'home' || $('#ov').classList.contains('on') || $('#evo').classList.contains('on')) return;
+  const m = S.mons.find(x => jubTier(x) > (x.jc || 0)); if (!m) return;
+  const jt = jubTier(m), J = JUBS[jt]; m.jc = jt; save(); jubBusy = true;
+  const sh = sheet(`<h3>${J.e} ${J.t}!</h3><canvas id="jbC" style="width:100%;height:240px;display:block"></canvas>
+  <p style="text-align:center;margin:4px 0 2px;font-size:15px"><b>${esc(m.name)}</b> живёт с тобой уже ${ageDays(m)} ${dayWord(ageDays(m))}.</p>
+  <p class="sub" style="text-align:center;margin:2px 0 12px">Награда за верность — <b>${J.n}</b>. Её нельзя купить, она есть только у тех, кто дружит со своим монстром так долго.</p>
+  <div class="stack"><button class="btn pink" id="jbS">Похвастаться</button><button class="btn ghost" id="jbOk">Ура!</button></div>`);
+  sheetHook = () => { jubBusy = false; if (cur === 'home') renderHome(); };
+  const cv = sh.querySelector('#jbC'), t0 = performance.now() / 1000, conf = Array.from({ length: 60 }, () => ({ x: Math.random(), y: -Math.random() * 0.8, v: 0.15 + Math.random() * 0.25, c: pick(['#ffd34d', '#ff5c9a', '#4dd2ff', '#59e36b', '#9a6bff']), r: Math.random() * 6 }));
+  const fr = () => { if (!document.body.contains(cv)) return; const t = performance.now() / 1000, e = t - t0; const { ctx, w, h } = fit(cv); ctx.clearRect(0, 0, w, h);
+    conf.forEach(p => { const y = ((p.y + e * p.v) % 1.1) * h; ctx.save(); ctx.translate(p.x * w, y); ctx.rotate(p.r + e * 3); ctx.fillStyle = p.c; ctx.fillRect(-4, -2, 8, 4); ctx.restore(); });
+    drawChudik(ctx, m, w / 2, h * 0.55, h * 0.28 * easeOutBack(clamp(e / 0.6, 0.01, 1)), { t, jump: Math.max(0, Math.sin(e * 5)) * 0.15 * (e < 2 ? 1 : 0) });
+    requestAnimationFrame(fr); };
+  fr(); hapN('success'); jubSound(); voice(m, 'happy', 0.5);
+  sh.querySelector('#jbOk').onclick = closeSheet;
+  sh.querySelector('#jbS').onclick = () => { closeSheet(); makeCard(m, `${J.t}! ${J.e}`); };
+}
 
 /* ================== ИНКУБАТОР ================== */
 const EGG_CD = 72 * 3600e3; // бесплатное яйцо раз в 3 дня
@@ -2070,7 +2196,7 @@ function endMatch() {
   $('#batFin').classList.add('hidden');
   const won = B.F[0].wins >= 2; const me = B.me, op = B.op;
   const xp = won ? 25 + op.lv * 6 : 10 + op.lv * 2; const coins = won ? 15 + op.lv * 3 + (B.flawless ? 10 : 0) : 5;
-  const r = gainXp(me, xp); S.coins += coins; S.fights++; if (won) { S.wins++; me.w++; } else me.l++;
+  const mt0 = markTier(me); const r = gainXp(me, xp); S.coins += coins; S.fights++; if (won) { S.wins++; me.w++; } else me.l++; const newMark = markTier(me) > mt0 ? MARKS[markTier(me)] : null;
   let gift = null;
   if (r.s1 > r.s0) { const notOwned = ACCS.slice(1).filter(a => !S.own.acc.includes(a.id)); if (notOwned.length) { gift = pick(notOwned.filter(a => a.p <= 20).concat(notOwned).slice(0, 4)); S.own.acc.push(gift.id); } }
   let recruit = null;
@@ -2078,7 +2204,7 @@ function endMatch() {
   save();
   setTimeout(() => {
     $('#rTitle').textContent = won ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'; $('#rTitle').style.color = won ? '#ffd34d' : '#ff9eb5';
-    $('#rText').innerHTML = `+${xp} опыта • +${coins} 🪙` + (B.flawless && won ? '<br>🏅 Безупречная победа!' : '') + (r.ups ? `<br>⬆️ Уровень ${me.lv}!` : '') + (r.s1 > r.s0 ? `<br>✨ ${esc(me.name)} превращается в «${STAGES[r.s1].name}»!` : '') + (gift ? `<br>🎁 Подарок за эволюцию: ${gift.e} ${gift.n}` : '') + (recruit ? `<br>🥺 ${esc(op.name)} просится к тебе в загон!` : '') + (B.opts.kind === 'chal' && won ? '<br>Отправь ответку — пусть знает!' : '');
+    $('#rText').innerHTML = `+${xp} опыта • +${coins} 🪙` + (B.flawless && won ? '<br>🏅 Безупречная победа!' : '') + (r.ups ? `<br>⬆️ Уровень ${me.lv}!` : '') + (newMark ? `<br>${newMark.e} Новая отметина: «${newMark.n}» — за ${newMark.t}!` : '') + (r.s1 > r.s0 ? `<br>✨ ${esc(me.name)} превращается в «${STAGES[r.s1].name}»!` : '') + (gift ? `<br>🎁 Подарок за эволюцию: ${gift.e} ${gift.n}` : '') + (recruit ? `<br>🥺 ${esc(op.name)} просится к тебе в загон!` : '') + (B.opts.kind === 'chal' && won ? '<br>Отправь ответку — пусть знает!' : '');
     const btns = $('#rBtns'); btns.innerHTML = '';
     const add = (label, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = label; b.onclick = () => { hap(); fn(b); }; btns.appendChild(b); return b; };
     if (B.rec) { const b = add('Сохранить МОНСТРАЛИТИ', 'mint', () => { if (B.clip) shareMedia(B.clip.blob, B.clip.ext, 'video', me); }); b.id = 'rClip'; if (!B.clip) b.disabled = true; }
@@ -2221,7 +2347,7 @@ function endTraining() {
 const b64u = bytes => btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64u = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Array.from(atob(s), c => c.charCodeAt(0)); };
 function encodeMon(m) {
-  const head = [m.sp, m.sp2 < 0 ? 7 : m.sp2, Math.min(255, m.lv), (m.h1 >> 1) & 255, (m.h2 >> 1) & 255, m.pat, m.eye, m.mouth, m.acc, m.eff, m.mut & 255, (m.seed >> 8) & 255, m.seed & 255];
+  const head = [m.sp, m.sp2 < 0 ? 7 : m.sp2, Math.min(255, m.lv), (m.h1 >> 1) & 255, (m.h2 >> 1) & 255, (m.pat & 15) | (Math.min(6, markTier(m)) << 4), m.eye, m.mouth, m.acc, m.eff, (m.mut & 31) | (Math.min(4, m.noReg ? 0 : jubTier(m)) << 5), (m.seed >> 8) & 255, m.seed & 255];
   let name = m.name; let nb = Array.from(new TextEncoder().encode(name));
   while (nb.length > 31) { name = name.slice(0, -1); nb = Array.from(new TextEncoder().encode(name)); }
   const all = head.concat(nb); let c = 7; all.forEach((x, i) => c = (c * 31 + x + i) & 255);
@@ -2231,10 +2357,10 @@ function decodeMon(s) {
   try {
     const b = unb64u(s); const c0 = b[0], all = b.slice(1); let c = 7; all.forEach((x, i) => c = (c * 31 + x + i) & 255);
     if (c !== c0 || all.length < 13) return null;
-    const [sp, sp2, lv, h1, h2, pat, eye, mouth, acc, eff, mut, s1, s2] = all;
+    let [sp, sp2, lv, h1, h2, pat, eye, mouth, acc, eff, mut, s1, s2] = all; const mt = pat >> 4, jt = mut >> 5; pat &= 15; mut &= 31;
     if (sp > 5 || pat > 4 || eye > 4 || mouth > 4 || acc > 8 || eff > 5) return null;
     const name = new TextDecoder().decode(new Uint8Array(all.slice(13))) || 'Монстр';
-    return Object.assign(newMon(sp, { sp2: sp2 === 7 ? -1 : sp2, lv: Math.max(1, lv), h1: h1 * 2, h2: h2 * 2, pat, eye, mouth, acc, eff, mut, seed: (s1 << 8) | s2, name }), { id: 'chal' });
+    return Object.assign(newMon(sp, { sp2: sp2 === 7 ? -1 : sp2, lv: Math.max(1, lv), h1: h1 * 2, h2: h2 * 2, pat, eye, mouth, acc, eff, mut, seed: (s1 << 8) | s2, name }), { id: 'chal', mt, jt });
   } catch (e) { return null; }
 }
 const challengeLink = m => `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=c${encodeMon(m)}`;
@@ -2353,6 +2479,7 @@ function makeCard(m, headline) {
   txt(m.name, H * 0.72, 110, '#fff');
   txt(`${speciesLabel(m)} • ${STAGES[stageOf(m.lv)].name} • ур. ${m.lv}`, H * 0.72 + 80, 46, 'rgba(255,255,255,.92)', 10);
   txt(`Характер: ${quirkOf(m)}`, H * 0.72 + 150, 40, 'rgba(255,255,255,.8)', 9);
+  if (m.born) { const ad = ageDays(m); txt(`🎂 ${ad} ${dayWord(ad)} вместе  •  ⚔️ ${m.w || 0} ${winWord(m.w || 0)}`, H * 0.72 + 215, 40, '#ffd34d', 9); }
   txt('⚔️ Сможешь победить?', H * 0.9, 58, '#ff9ed2', 12);
   ctx.font = '800 36px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.textAlign = 'center'; ctx.fillText(`MONSTER BATTLE в Telegram • @${CONFIG.BOT_USERNAME}`, W / 2, H - 60);
   cv.toBlob(b => shareMedia(b, 'png', 'image', m), 'image/png');
