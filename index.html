@@ -414,6 +414,7 @@ function auInit() {
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.22;
     AU.master = c.createGain(); AU.master.gain.value = 0.9; AU.master.connect(comp); comp.connect(c.destination);
     try { AU.dest = c.createMediaStreamDestination(); comp.connect(AU.dest); } catch (e) {}
+    setTimeout(() => auLoadVox && auLoadVox(), 0);
     AU.mus = c.createGain(); AU.mus.gain.value = 0; AU.mus.connect(AU.master);
     AU.fx = c.createGain(); AU.fx.gain.value = S.sfxOff ? 0 : SFX_VOL; AU.fx.connect(AU.master);
     AU.revM = c.createConvolver(); AU.revM.buffer = auImpulse(3.8, 2.4); AU.revM.connect(AU.mus);
@@ -567,6 +568,29 @@ const VOICES = [0, 1, 2, 3, 4, 5].map(sp => {
 /* ---- звуковые эффекты ---- */
 function thump(t, f0, f1, dur, vol) { const o = O('sine', f0, t), g = G(0); o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.6); envD(g, t, vol, 0.002, dur); o.connect(g); out(g, 'f', 0.15); o.start(t); o.stop(t + dur + 0.05); }
 function nz(t, type, f, dur, vol, q = 1, rev = 0.1) { const s = N(t, dur), fl = F(type, f, q), g = G(0); envD(g, t, vol, 0.002, dur); s.connect(fl); fl.connect(g); out(g, 'f', rev); return fl; }
+/* ---- звуки яйца: покачивание, трещины, вылупление ---- */
+function eggOk() { return AU.ctx && !S.sfxOff && AU.ctx.state === 'running'; }
+function eggKnock(t, v = 1) { thump(t, 420, 230, 0.07, 0.28 * v); nz(t, 'bandpass', 1500, 0.035, 0.16 * v, 2, 0.05); }
+function eggCrack(t, v = 1) {
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) { const tt = t + i * (0.012 + Math.random() * 0.03); nz(tt, 'bandpass', 2600 + Math.random() * 3200, 0.012 + Math.random() * 0.018, (0.3 + Math.random() * 0.25) * v, 4, 0.05); }
+  nz(t, 'highpass', 5000, 0.025, 0.18 * v, 1, 0.05); thump(t, 900, 400, 0.03, 0.12 * v);
+}
+function eggPop(t) {
+  thump(t, 240, 60, 0.22, 0.8); nz(t, 'lowpass', 2200, 0.16, 0.45, 1, 0.12);
+  for (let i = 0; i < 9; i++) nz(t + 0.01 + Math.random() * 0.12, 'bandpass', 2000 + Math.random() * 4000, 0.02 + Math.random() * 0.03, 0.18, 3, 0.1); // осколки скорлупы
+  const fl = nz(t + 0.02, 'highpass', 2500, 0.9, 0.07, 1, 0.5); fl.frequency.exponentialRampToValueAtTime(9000, t + 0.8);
+  [0, 4, 7, 12, 16].forEach((k, i) => bell(nf(79 + k), t + 0.08 + i * 0.06, 0.035, 'f', 1.4)); // волшебный перезвон
+}
+function eggGrow(t, i) { const o = O('sine', 300 * Math.pow(1.26, i), t), g = G(0); o.frequency.exponentialRampToValueAtTime(620 * Math.pow(1.26, i), t + 0.12); envD(g, t, 0.16, 0.004, 0.16); o.connect(g); out(g, 'f', 0.15); o.start(t); o.stop(t + 0.2); thump(t, 160, 90, 0.12, 0.25); }
+// вся последовательность: hatch — через сколько секунд яйцо лопается
+function hatchSound(hatch = 1.6, m = null) {
+  auInit(); if (!AU.clips) auLoadVox(); if (!eggOk()) return; const t = AU.ctx.currentTime;
+  [0.05, 0.3, 0.55].forEach((d, i) => eggKnock(t + d * hatch / 1.6, 0.6 + i * 0.2));
+  [0.5, 0.68, 0.82, 0.92].forEach((f, i) => eggCrack(t + hatch * f, 0.6 + i * 0.15));
+  eggPop(t + hatch);
+  if (m) voice(m, 'happy', hatch + 0.35);
+}
 const SFX_ON = false; // по решению: звуки издают только монстры
 function sfx(name, d = 0) {
   if (!SFX_ON || !AU.ctx || S.sfxOff || AU.ctx.state !== 'running') return;
@@ -1263,12 +1287,12 @@ loops.onb = t => {
 $('#cOnb').addEventListener('click', e => {
   if (!onb || onb.phase !== 'pick') return;
   const rect = e.currentTarget.getBoundingClientRect(); const x = (e.clientX - rect.left) / rect.width;
-  onb.chosen = x < 0.35 ? 0 : x < 0.65 ? 1 : 2; onb.phase = 'hatch'; onb.t0 = performance.now() / 1000; hap('heavy'); sfx('crack', 0.8); sfx('crack', 1.3);
+  onb.chosen = x < 0.35 ? 0 : x < 0.65 ? 1 : 2; onb.phase = 'hatch'; onb.t0 = performance.now() / 1000; hap('heavy'); hatchSound(1.6, onb.mons[onb.chosen]);
   setTimeout(() => hapN('success'), 1600);
   $('#onbSub').textContent = 'Кто-то вылупляется...';
 });
 function onbReveal() {
-  const m = onb.mons[onb.chosen]; sfx('evo'); voice(m, 'happy', 0.3);
+  const m = onb.mons[onb.chosen];
   $('#onbSub').textContent = 'Знакомься! Его характер уже не изменить.';
   $('#onbName').textContent = m.name; $('#onbTag').textContent = `${SPECIES[m.sp].name} • ${SPECIES[m.sp].desc}`;
   $('#onbQuirk').textContent = 'Характер: ' + quirkOf(m); $('#onbAfter').classList.remove('hidden');
@@ -1332,7 +1356,7 @@ $('#cHome').addEventListener('click', () => {
 $('#hRename').onclick = () => { const m = act(); askText('Новое имя', m.name, v => { m.name = v; save(); renderHome(); }); };
 $('#hFight').onclick = () => { hap('medium'); startBattle(act(), makeOpponent(act()), { kind: 'pve' }); };
 $('#hChal').onclick = () => shareChallenge(act());
-$('#hVid').onclick = () => { const m = act(); const st = stageOf(m.lv); const list = []; for (let i = 0; i <= st; i++) list.push(i); if (list.length < 2) { openEvo(m, [0], 'journey'); toast('Пока он комочек. Расти — и видео станет эпичным!', 2600); } else openEvo(m, list, 'journey'); };
+$('#hVid').onclick = () => { const m = act(); const st = stageOf(m.lv); const list = []; for (let i = 0; i <= st; i++) list.push(i); if (list.length < 2) { openEvo(m, [0], 'journey'); toast('На 3 уровне он превратится — видео станет ещё круче', 2600); } else openEvo(m, list, 'journey'); };
 $('#hCard').onclick = () => makeCard(act());
 $('#hWard').onclick = () => show('shop');
 
@@ -1406,12 +1430,12 @@ $('#bGo').onclick = () => {
 function hatchSheet(m, title, onAdd, shareLbl = 'Похвастаться гибридом') {
   const sh = sheet(`<h3 id="hsT">Вылупляется...</h3><canvas id="hsC" style="width:100%;height:280px;display:block"></canvas><div id="hsInfo" class="hidden" style="text-align:center"><div class="mname" style="font-size:20px">${esc(m.name)}</div><div class="mtag">${speciesLabel(m)}</div><div class="quirk">Характер: ${quirkOf(m)}</div>${m.mut ? `<div class="note" style="text-align:center">🧬 РЕДКАЯ МУТАЦИЯ: ${MUTS.find(x => x.bit === m.mut).n}!</div>` : ''}<div class="stack"><button class="btn pink" id="hsShare">${shareLbl}</button><button class="btn ghost" id="hsOk">В загон</button></div></div>`);
   const cv = sh.querySelector('#hsC'); const t0 = performance.now() / 1000; let done = false;
-  onAdd(); hap('heavy');
+  onAdd(); hap('heavy'); hatchSound(1.6, m);
   const fr = () => {
     if (!document.body.contains(cv)) return;
     const t = performance.now() / 1000, e = t - t0; const { ctx, w, h } = fit(cv); ctx.clearRect(0, 0, w, h);
     if (e < 1.6) drawEgg(ctx, w / 2, h * 0.48, h * 0.24, m.h1, e > 0.8 ? (e - 0.8) / 0.8 : 0, Math.sin(e * 25) * 0.12 * (e / 1.6), m.seed);
-    else { const k = clamp((e - 1.6) / 0.6, 0, 1); drawChudik(ctx, m, w / 2, h * 0.52, h * 0.3 * Math.max(0.01, easeOutBack(k)), { t }); if (e < 1.9) { ctx.fillStyle = `rgba(255,255,255,${1 - (e - 1.6) / 0.3})`; ctx.fillRect(0, 0, w, h); } if (!done) { done = true; hapN('success'); sfx('evo'); voice(m, 'happy', 0.3); sh.querySelector('#hsT').textContent = title; sh.querySelector('#hsInfo').classList.remove('hidden'); } }
+    else { const k = clamp((e - 1.6) / 0.6, 0, 1); drawChudik(ctx, m, w / 2, h * 0.52, h * 0.3 * Math.max(0.01, easeOutBack(k)), { t }); if (e < 1.9) { ctx.fillStyle = `rgba(255,255,255,${1 - (e - 1.6) / 0.3})`; ctx.fillRect(0, 0, w, h); } if (!done) { done = true; hapN('success'); sh.querySelector('#hsT').textContent = title; sh.querySelector('#hsInfo').classList.remove('hidden'); } }
     requestAnimationFrame(fr);
   };
   fr();
@@ -2180,15 +2204,16 @@ const FX_COL = { 0: ['#ffffff', '#ffe9a8'], 1: ['#ffe066', '#fff6c2'], 2: ['#ff5
 function openEvo(m, stages, mode) {
   $('#evo').classList.add('on'); hap('medium');
   evoState = { m, stages, mode, t0: performance.now(), parts: [], lastSeg: -1, rec: null, onEnd: null };
-  const SEG = 1900, INTRO = 700, HOLD = 2600;
-  evoState.total = INTRO + Math.max(0, stages.length - 1) * SEG + HOLD;
+  const J = mode === 'journey', EGG = J ? 2000 : 0, SEG = 1900, INTRO = J ? 1700 : 700, HOLD = 2600;
+  evoState.total = EGG + INTRO + Math.max(0, stages.length - 1) * SEG + HOLD;
+  if (J) { hatchSound(EGG / 1000, m); if (eggOk()) [0, 1, 2].forEach(i => eggGrow(AU.ctx.currentTime + (EGG + 350 + i * 420) / 1000, i)); }
   const cv = $('#cEvo'), ctx = cv.getContext('2d'), W = 720, H = 1280;
   const cols = FX_COL[m.eff] || FX_COL[0];
   const burst = (n, cx, cy, out) => { for (let i = 0; i < n; i++) { const a = Math.random() * 7, sp = out ? rnd(300, 900) : rnd(200, 500); evoState.parts.push({ x: out ? cx : cx + Math.cos(a) * 420, y: out ? cy : cy + Math.sin(a) * 420, vx: out ? Math.cos(a) * sp : -Math.cos(a) * sp, vy: out ? Math.sin(a) * sp : -Math.sin(a) * sp, life: out ? rnd(0.8, 1.6) : 0.7, age: 0, c: pick(cols), s: rnd(6, 16), shape: m.eff === 2 ? 'h' : (m.eff === 1 || m.eff === 0) ? 's' : 'c' }); } };
   let lastT = performance.now();
   evoFrame = () => {
     const now = performance.now(); const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
-    const e = now - evoState.t0; const t = now / 1000;
+    const e = now - evoState.t0 - EGG; const t = now / 1000;
     let segIdx = Math.floor((e - INTRO) / SEG); let u = ((e - INTRO) % SEG) / SEG;
     const nSeg = stages.length - 1;
     let stA, stB = null, k = 0;
@@ -2203,12 +2228,16 @@ function openEvo(m, stages, mode) {
     // монстр
     const Rb = st => 230 * (0.55 + STAGES[st].s * 0.5);
     const cx = W / 2, cy = H * 0.54;
-    if (stB === null) { const pk = segIdx >= nSeg && nSeg > 0 ? easeOutBack(clamp(((e - INTRO - nSeg * SEG) / 500) + 1, 0, 1)) : 1; drawChudik(ctx, m, cx, cy, Rb(stA) * pk, { t, stage: stA, fx: 2 }); }
+    const grow = J && segIdx === -1 && e >= 0 ? 0.42 + 0.58 * [0, 1, 2].reduce((a, i) => a + easeOutBack(clamp((e - 350 - i * 420) / 280, 0, 1)), 0) / 3 : 1;
+    if (e < 0) { const ee = (e + EGG) / EGG; const cr = clamp((ee - 0.45) / 0.55, 0, 1); drawEgg(ctx, cx + Math.sin(t * 40) * 8 * cr, cy + 40, 170, m.h1, cr, Math.sin(ee * 30) * 0.16 * ee, m.seed); }
+    else if (stB === null) { const pk = segIdx >= nSeg && nSeg > 0 ? easeOutBack(clamp(((e - INTRO - nSeg * SEG) / 500) + 1, 0, 1)) : 1; drawChudik(ctx, m, cx, cy, Rb(stA) * pk * grow * (J && segIdx === -1 ? easeOutBack(clamp(e / 350, 0.01, 1)) : 1), { t, stage: stA, fx: 2 }); }
     else if (k < 0.55) { const sh = k / 0.55; drawChudik(ctx, m, cx + Math.sin(t * 70) * 14 * sh, cy, Rb(stA) * (1 + sh * 0.08), { t, stage: stA, hurt: sh * 0.6, fx: 1 + sh }); }
     else { const pk = easeOutBack(clamp((k - 0.58) / 0.3, 0, 1)); drawChudik(ctx, m, cx, cy, Math.max(1, Rb(stB) * (0.5 + pk * 0.5)), { t, stage: stB, fx: 2.5 }); }
     if (segIdx !== evoState.lastSeg) { evoState.lastSeg = segIdx; }
     if (stB && k > 0.1 && k < 0.5 && Math.random() < 0.6) burst(3, cx, cy, false);
     if (stB && !evoState['b' + segIdx] && k >= 0.58) { evoState['b' + segIdx] = 1; burst(70, cx, cy, true); hap('heavy'); sfx('evo'); voice(m, 'super', 0.1); }
+    if (J && e >= 0 && !evoState.hb) { evoState.hb = 1; burst(80, cx, cy, true); hap('heavy'); }
+    if (J && e >= 0 && e < 320) { ctx.fillStyle = `rgba(255,255,255,${1 - e / 320})`; ctx.fillRect(0, 0, W, H); }
     // частицы
     evoState.parts = evoState.parts.filter(p => (p.age += dt) < p.life);
     evoState.parts.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.97; p.vy *= 0.97; ctx.globalAlpha = 1 - p.age / p.life; if (p.shape === 'h') heart(ctx, p.x, p.y, p.s * 1.4, p.c); else if (p.shape === 's') star(ctx, p.x, p.y, p.s * 1.3, p.c, 4, 0.35); else circ(ctx, p.x, p.y, p.s * 0.7, p.c); }); ctx.globalAlpha = 1;
@@ -2218,9 +2247,9 @@ function openEvo(m, stages, mode) {
     ctx.textAlign = 'center'; ctx.lineJoin = 'round';
     const txt = (s, y, size, col, lw = 10) => { ctx.font = `900 ${size}px system-ui,-apple-system,sans-serif`; ctx.lineWidth = lw; ctx.strokeStyle = OUT; ctx.strokeText(s, W / 2, y); ctx.fillStyle = col; ctx.fillText(s, W / 2, y); };
     const curSt = stB && k > 0.58 ? stB : stA;
-    if (mode === 'journey') txt(nSeg > 0 && segIdx >= nSeg ? 'ОТ КОМОЧКА ДО МЕМА' : 'СМОТРИ, КАК ОН ВЫРОС', 170, 50, '#ffd34d');
+    if (J) txt(e < 0 ? 'КТО-ТО ВЫЛУПЛЯЕТСЯ...' : segIdx === -1 && e < 1600 ? 'РАСТЁТ!' : nSeg > 0 && segIdx >= nSeg ? 'ВОТ КАК ОН ВЫРОС!' : 'СМОТРИ, КАК ОН ВЫРОС', 170, 50, '#ffd34d');
     else txt(segIdx >= nSeg ? 'ЭВОЛЮЦИЯ!' : 'ЧТО-ТО ПРОИСХОДИТ...', 170, segIdx >= nSeg ? 76 : 50, '#ffd34d');
-    txt(STAGES[curSt].name.toUpperCase(), H * 0.83, 64, '#fff');
+    txt(e < 0 ? 'ЯЙЦО' : STAGES[curSt].name.toUpperCase(), H * 0.83, 64, '#fff');
     txt(`${m.name} • ${speciesLabel(m)}`, H * 0.83 + 62, 34, 'rgba(255,255,255,.9)', 8);
     ctx.font = '800 26px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillText(`Monster Battle • @${CONFIG.BOT_USERNAME}`, W / 2, H - 50);
     if (e >= evoState.total && !evoState.ended) { evoState.ended = true; if (evoState.onEnd) evoState.onEnd(); }
