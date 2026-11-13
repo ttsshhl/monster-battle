@@ -31,6 +31,8 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
 .row2{display:flex;gap:10px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.li small{color:var(--t3);font-size:14px;margin-right:4px}.li small.rdy{color:#30D158;font-weight:600}
+.eggpick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.eggpick button{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);border-radius:16px;padding:6px 2px 10px;color:#fff;font:inherit;font-size:13px;font-weight:600;display:flex;flex-direction:column;align-items:center}.eggpick canvas{width:100%;max-width:110px}.eggpick i{font-style:normal;font-weight:400;opacity:.6;font-size:11px;margin-top:2px}
 .stagebox{position:relative;border-radius:28px;background:radial-gradient(70% 70% at 50% 42%,rgba(124,92,255,.2),rgba(255,255,255,.025));border:1px solid var(--line);overflow:hidden;touch-action:pan-y}
 .stagebox canvas{display:block;width:100%;height:100%}
 .arrow{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);color:#fff;display:flex;align-items:center;justify-content:center;z-index:2}
@@ -93,8 +95,8 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
 .sheet .stack{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 .sheet input{width:100%;font:inherit;font-size:17px;font-weight:500;padding:13px 14px;border-radius:12px;border:0;background:rgba(118,118,128,.24);color:#fff;outline:none;-webkit-user-select:text;user-select:text}
 .sheet video,.sheet img{width:100%;max-height:46vh;object-fit:contain;border-radius:14px;background:#0006;display:block}
-#toast{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translate(-50%,-90px);background:rgba(40,36,52,.86);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);color:#fff;font-weight:600;border-radius:16px;padding:11px 16px;z-index:40;transition:transform .3s cubic-bezier(.2,.9,.3,1);max-width:92vw;text-align:center;font-size:14px;border:1px solid rgba(255,255,255,.1)}
-#toast.on{transform:translate(-50%,0)}
+#toast{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translate(-50%,calc(-100% - 60px));opacity:0;visibility:hidden;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .2s,visibility 0s .3s;background:rgba(40,36,52,.86);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);color:#fff;font-weight:600;border-radius:16px;padding:11px 16px;z-index:40;transition:transform .3s cubic-bezier(.2,.9,.3,1);max-width:92vw;text-align:center;font-size:14px;border:1px solid rgba(255,255,255,.1)}
+#toast.on{transform:translate(-50%,0);opacity:1;visibility:visible;transition:transform .3s cubic-bezier(.2,.9,.3,1),opacity .2s}
 #evo{position:fixed;inset:0;background:#0b0912;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;padding:calc(8px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
 #evo.on{display:flex}
 #evo canvas{flex:1;min-height:0;max-width:100%;aspect-ratio:9/16;border-radius:20px}
@@ -176,6 +178,7 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
   <div class="xpl"><span id="hLv"></span><span id="hNext"></span></div>
   <div class="row2" style="margin-top:16px"><button class="btn" id="hFight" data-i="swords">В бой</button><button class="btn gray" id="hTrain" data-i="target">Тренировка</button></div>
   <div class="list">
+    <button class="li" id="hInc"><i class="ic" style="--c:#FFD60A" data-i="egg"></i><span>Инкубатор</span><small id="hIncT"></small><em data-i="chevR"></em></button>
     <button class="li" id="hChal"><i class="ic" style="--c:#FF375F" data-i="users"></i><span>Вызвать друга</span><em data-i="chevR"></em></button>
     <button class="li" id="hVid"><i class="ic" style="--c:#30D158" data-i="film"></i><span>Видео эволюции</span><em data-i="chevR"></em></button>
     <button class="li" id="hCard"><i class="ic" style="--c:#FF9F0A" data-i="image"></i><span>Карточка в сторис</span><em data-i="chevR"></em></button>
@@ -188,9 +191,9 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
 <!-- PEN -->
 <section class="screen" id="s-pen">
   <header class="lt"><h2>Загон</h2><span class="pill" id="penSlots">0/4</span></header>
-  <p class="sub">Тапни по монстру, чтобы сделать его главным, переименовать или отпустить. На главной монстров можно листать свайпом.</p>
+  <p class="sub">Здесь живут все твои монстры. Тапни по любому, чтобы сделать его главным: он пойдёт в бой. Новых монстров даёт инкубатор (бесплатное яйцо раз в 3 дня), скрещивание и победы в боях. На главной монстров листают стрелками.</p>
   <div class="grid3" id="penGrid"></div>
-  <div style="margin-top:14px"><button class="btn gray sm" id="penBuy" data-i="plus">Ещё 2 места — 30 ⭐</button></div>
+  <div class="row2" style="margin-top:14px"><button class="btn sm" id="penInc" data-i="egg">Инкубатор</button><button class="btn gray sm" id="penBuy" style="white-space:nowrap;font-size:14px">+2 места · 30 ⭐</button></div>
 </section>
 
 <!-- BREED -->
@@ -294,6 +297,7 @@ function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.c
 
 /* ================== ИКОНКИ (в стиле SF Symbols) ================== */
 const ICONS = {
+  egg: '<path d="M12 3C8.5 3 5.5 8.5 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 8.5 15.5 3 12 3z"/><path d="M8.5 13l2 1.6 1.6-2 1.8 2 1.6-1.6"/>',
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   paw: '<circle cx="5.5" cy="10" r="2"/><circle cx="9.5" cy="5.5" r="2"/><circle cx="14.5" cy="5.5" r="2"/><circle cx="18.5" cy="10" r="2"/><path d="M12 12c-3 0-6 3.5-6 6.2C6 20 7.5 21 9 21c1.2 0 2-.6 3-.6s1.8.6 3 .6c1.5 0 3-1 3-2.8C18 15.5 15 12 12 12z"/>',
   dna: '<path d="M8 3c0 5 8 5 8 9s-8 4-8 9"/><path d="M16 3c0 5-8 5-8 9s8 4 8 9"/><path d="M9.5 6h5M9.5 18h5M10.5 12h3"/>',
@@ -352,7 +356,7 @@ const EFFS = [null,
   { id: 4, n: 'Радуга', p: 40, e: '🌈' }, { id: 5, n: 'Молнии', p: 40, e: '⚡' }];
 const MUTS = [{ bit: 1, n: 'Третий глаз', p: 25, e: '👁️' }, { bit: 2, n: 'Рожки', p: 25, e: '😈' }, { bit: 4, n: 'Антенны', p: 15, e: '📡' },
   { bit: 8, n: 'Крылышки', p: 35, e: '🪽' }, { bit: 16, n: 'Неон', p: 50, e: '💡' }];
-const UPS = [{ sku: 'slots', n: '+2 места в загоне', p: 30, e: '🏠' }, { sku: 'paint', n: 'Перекраска', p: 15, e: '🎨' }];
+const UPS = [{ sku: 'egg', n: 'Яйцо монстра', p: 25, e: '🥚' }, { sku: 'slots', n: '+2 места в загоне', p: 30, e: '🏠' }, { sku: 'paint', n: 'Перекраска', p: 15, e: '🎨' }];
 const BREED_COST = 150, PAINT_COINS = 300;
 
 const stageOf = lv => { let s = 0; STAGES.forEach((st, i) => { if (lv >= st.min) s = i; }); return s; };
@@ -1271,7 +1275,7 @@ function onbReveal() {
 }
 $('#onbRename').onclick = () => { const m = onb.mons[onb.chosen]; askText('Как назовём?', m.name, v => { m.name = v; $('#onbName').textContent = v; }); };
 $('#onbGo').onclick = () => {
-  const m = onb.mons[onb.chosen]; S.mons = [m]; S.active = 0; save(); hapN('success');
+  const m = onb.mons[onb.chosen]; S.mons = [m]; S.active = 0; S.eggAt = Date.now() + EGG_CD; save(); hapN('success');
   onb = null; show('home', false);
   if (pendingChallenge) setTimeout(openChallenge, 300);
   else setTimeout(() => toast('Побеждай — и он вырастет в мемного монстра 👀', 3000), 400);
@@ -1284,7 +1288,7 @@ function renderHome() {
   $('#hCoins').innerHTML = svgI('coin') + S.coins; $('#hRec').innerHTML = svgI('trophy') + S.wins;
   const many = S.mons.length > 1; $('#hPrev').classList.toggle('hidden', !many); $('#hNextMon').classList.toggle('hidden', !many);
   $('#hDots').innerHTML = many ? S.mons.slice(0, 12).map((x, i) => `<i class="${i === S.active ? 'on' : ''}"></i>`).join('') : '';
-  $('#hName').textContent = m.name;
+  $('#hName').textContent = m.name; incLabel();
   const st = stageOf(m.lv);
   $('#hTag').textContent = `${speciesLabel(m)}${m.sp2 >= 0 && m.sp2 !== m.sp ? ' (гибрид)' : ''} • ${STAGES[st].name}`;
   $('#hQuirk').textContent = 'Характер: ' + quirkOf(m);
@@ -1304,7 +1308,7 @@ loops.home = t => {
   const base = m.sp === 1 || m.sp2 === 1 ? 0.35 : 0;
   drawChudik(ctx, m, w / 2 + homeAnim.slide * w * 0.5, h * 0.55, R, { t, jump: homeAnim.jump, sx: homeAnim.sx, sy: homeAnim.sy, chomp: homeAnim.chomp, mood: homeAnim.mood, alpha: 1 - Math.abs(homeAnim.slide) * 0.8, sweat: Math.min(1, base + homeAnim.sweat) });
 };
-function switchMon(d) { if (S.mons.length < 2) { toast('Пока у тебя один монстр — скрещивай или забирай побеждённых'); return; } S.active = (S.active + d + S.mons.length) % S.mons.length; save(); homeAnim.slide = d; hap('light'); renderHome(); }
+function switchMon(d) { if (S.mons.length < 2) { toast('Пока монстр один. Новых даёт инкубатор 🥚'); return; } S.active = (S.active + d + S.mons.length) % S.mons.length; save(); homeAnim.slide = d; hap('light'); renderHome(); }
 $('#hPrev').onclick = e => { e.stopPropagation(); switchMon(-1); };
 $('#hNextMon').onclick = e => { e.stopPropagation(); switchMon(1); };
 (() => { let x0 = null, swiped = false; const el = $('#cHome'); el.addEventListener('pointerdown', e => { x0 = e.clientX; swiped = false; }); el.addEventListener('pointerup', e => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 40) { swiped = true; switchMon(dx < 0 ? 1 : -1); } }); el.addEventListener('click', e => { if (swiped) { e.stopImmediatePropagation(); swiped = false; } }, true); })();
@@ -1376,7 +1380,7 @@ function renderBreed() {
   if (breedPicking >= 0) {
     const g = $('#bGrid'); g.innerHTML = '';
     S.mons.forEach((m, i) => { const d = document.createElement('div'); d.className = 'card mon' + (breedSel.includes(i) ? ' sel' : ''); d.appendChild(miniCanvas(m)); d.insertAdjacentHTML('beforeend', `<div class="n">${esc(m.name)}</div><div class="s">${speciesLabel(m)}</div>`); d.onclick = () => { hap(); const other = breedSel[1 - breedPicking]; if (other === i) breedSel[1 - breedPicking] = -1; breedSel[breedPicking] = i; breedPicking = -1; renderBreed(); }; g.appendChild(d); });
-    if (S.mons.length < 2) g.insertAdjacentHTML('beforeend', '<div class="card empty" style="grid-column:span 2">Нужен второй монстр. Побеждай в боях — иногда побеждённые просятся к тебе в загон!</div>');
+    if (S.mons.length < 2) g.insertAdjacentHTML('beforeend', '<div class="card empty" style="grid-column:span 2">Нужен второй монстр. Загляни в инкубатор или побеждай в боях: иногда побеждённые просятся к тебе в загон!</div>');
   }
 }
 $('#bP1').onclick = () => { breedPicking = 0; renderBreed(); };
@@ -1399,8 +1403,8 @@ $('#bGo').onclick = () => {
   const baby = makeHybrid(a, b); S.coins -= BREED_COST;
   hatchSheet(baby, 'Гибрид вылупился!', () => { S.mons.push(baby); breedSel = [-1, -1]; save(); renderBreed(); });
 };
-function hatchSheet(m, title, onAdd) {
-  const sh = sheet(`<h3 id="hsT">Вылупляется...</h3><canvas id="hsC" style="width:100%;height:280px;display:block"></canvas><div id="hsInfo" class="hidden" style="text-align:center"><div class="mname" style="font-size:20px">${esc(m.name)}</div><div class="mtag">${speciesLabel(m)}</div><div class="quirk">Характер: ${quirkOf(m)}</div>${m.mut ? `<div class="note" style="text-align:center">🧬 РЕДКАЯ МУТАЦИЯ: ${MUTS.find(x => x.bit === m.mut).n}!</div>` : ''}<div class="stack"><button class="btn pink" id="hsShare">Похвастаться гибридом</button><button class="btn ghost" id="hsOk">В загон</button></div></div>`);
+function hatchSheet(m, title, onAdd, shareLbl = 'Похвастаться гибридом') {
+  const sh = sheet(`<h3 id="hsT">Вылупляется...</h3><canvas id="hsC" style="width:100%;height:280px;display:block"></canvas><div id="hsInfo" class="hidden" style="text-align:center"><div class="mname" style="font-size:20px">${esc(m.name)}</div><div class="mtag">${speciesLabel(m)}</div><div class="quirk">Характер: ${quirkOf(m)}</div>${m.mut ? `<div class="note" style="text-align:center">🧬 РЕДКАЯ МУТАЦИЯ: ${MUTS.find(x => x.bit === m.mut).n}!</div>` : ''}<div class="stack"><button class="btn pink" id="hsShare">${shareLbl}</button><button class="btn ghost" id="hsOk">В загон</button></div></div>`);
   const cv = sh.querySelector('#hsC'); const t0 = performance.now() / 1000; let done = false;
   onAdd(); hap('heavy');
   const fr = () => {
@@ -1414,6 +1418,46 @@ function hatchSheet(m, title, onAdd) {
   sh.querySelector('#hsOk').onclick = closeSheet;
   sh.querySelector('#hsShare').onclick = () => { closeSheet(); makeCard(m, 'Смотри, кто у меня вылупился!'); };
 }
+
+/* ================== ИНКУБАТОР ================== */
+const EGG_CD = 72 * 3600e3; // бесплатное яйцо раз в 3 дня
+const eggLeft = () => Math.max(0, (S.eggAt || 0) - Date.now());
+function fmtLeft(ms) { const h = Math.ceil(ms / 3600e3); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : h > 1 ? `${h} ч` : `${Math.max(1, Math.ceil(ms / 60e3))} мин`; }
+function incLabel() { const el = $('#hIncT'); if (!el) return; const l = eggLeft(); el.className = l ? '' : 'rdy'; el.textContent = (S.eggCr || 0) > 0 ? 'яйцо ждёт' : l ? fmtLeft(l) : 'готово!'; if (!l || S.eggCr > 0) el.className = 'rdy'; }
+function incubator() {
+  const l = eggLeft(), cr = S.eggCr || 0;
+  if (!l || cr > 0) return eggPick(!l ? false : true);
+  const sh = sheet(`<h3>Инкубатор</h3><canvas id="icC" style="width:100%;height:190px;display:block"></canvas>
+  <p style="text-align:center;margin:4px 0 2px;font-size:15px">Следующее бесплатное яйцо через<br><b style="font-size:24px" id="icT">${fmtLeft(l)}</b></p>
+  <p class="sub" style="text-align:center;margin:6px 0 12px">Из яйца вылупится один из трёх монстров на твой выбор. Новичок начинает с 1 уровня, так что в бою он сильнее не станет.</p>
+  <div class="stack"><button class="btn" id="icBuy">Вылупить сейчас — 25 ⭐</button><button class="btn ghost" id="icOk">Подожду</button></div>`);
+  const cv = sh.querySelector('#icC'), t0 = performance.now() / 1000;
+  const fr = () => { if (!document.body.contains(cv)) return; const e = performance.now() / 1000 - t0; const { ctx, w, h } = fit(cv); ctx.clearRect(0, 0, w, h); drawEgg(ctx, w / 2, h * 0.52, h * 0.3, (e * 20) % 360, 0, Math.sin(e * 2.2) * 0.06, 7); const tt = sh.querySelector('#icT'); if (tt && Math.floor(e) % 5 === 0) tt.textContent = fmtLeft(eggLeft()); requestAnimationFrame(fr); };
+  fr();
+  sh.querySelector('#icOk').onclick = closeSheet;
+  sh.querySelector('#icBuy').onclick = () => { closeSheet(); if (S.mons.length >= S.slots) return fullPen(); buyItem('egg'); };
+}
+function fullPen() { confirmSheet('Загон полон', 'Отпусти кого-нибудь или купи ещё 2 места.', 'Купить места — 30 ⭐', () => buyItem('slots')); }
+function eggPick(paid) {
+  if (S.mons.length >= S.slots) return fullPen();
+  const have = new Set(S.mons.map(m => m.sp));
+  const pool = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5).sort((a, b) => have.has(a) - have.has(b));
+  const opts = pool.slice(0, 3).map(sp => newMon(sp, { mut: Math.random() < 0.06 ? pick(MUTS).bit : 0 }));
+  const sh = sheet(`<h3>Выбери, кто вылупится</h3><p class="sub" style="text-align:center;margin:0">Тапни по монстру. Выбрать можно только одного.</p><div class="eggpick" id="epG"></div>`);
+  const g = sh.querySelector('#epG');
+  opts.forEach(m => {
+    const b = document.createElement('button'); b.appendChild(miniCanvas(m, 140));
+    b.insertAdjacentHTML('beforeend', `<span>${SPECIES[m.sp].name}</span><i>${have.has(m.sp) ? 'уже есть' : 'новый вид'}</i>`);
+    b.onclick = () => {
+      if (paid && (S.eggCr || 0) > 0) S.eggCr--; else S.eggAt = Date.now() + EGG_CD;
+      closeSheet(); setTimeout(() => hatchSheet(m, 'Новый монстр!', () => { S.mons.push(m); save(); incLabel(); if (cur === 'pen') renderPen(); }, 'Похвастаться'), 250);
+    };
+    g.appendChild(b);
+  });
+  sheetHook = null;
+}
+$('#hInc').onclick = incubator; $('#penInc').onclick = incubator;
+setInterval(incLabel, 30e3);
 
 /* ================== ГАРДЕРОБ / МАГАЗИН ================== */
 let shopTab = 'acc';
@@ -1456,6 +1500,7 @@ function grant(sku) {
   else if (k === 'eff' && !S.own.eff.includes(+v)) { S.own.eff.push(+v); m.eff = +v; }
   else if (k === 'mut') { S.own.mut |= +v; m.mut |= +v; }
   else if (sku === 'slots') S.slots += 2;
+  else if (sku === 'egg') { S.eggCr = (S.eggCr || 0) + 1; save(); setTimeout(() => eggPick(true), 400); }
   else if (sku === 'paint') { repaint(m); }
   save(); hapN('success');
   if (cur === 'shop') renderShop(); if (cur === 'pen') renderPen();
