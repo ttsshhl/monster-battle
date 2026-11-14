@@ -231,15 +231,21 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
 <section class="screen" id="s-shop">
   <header class="lt"><h2>Гардероб</h2><span class="pill" id="sName"></span></header>
   <div class="stagebox" style="height:29vh"><canvas id="cShop"></canvas></div>
-  <div class="note">За Stars — только внешность: мутации, аксессуары, эффекты превращения, места. Победы не продаются.</div>
-  <div class="tabs" id="sTabs"><button data-t="acc" class="on">Аксессуары</button><button data-t="mut">Мутации</button><button data-t="eff">Эффекты</button><button data-t="up">Ещё</button></div>
+  <div class="note">За Stars — только внешность: редкие монстры, мутации, аксессуары, эффекты, места. Победы не продаются.</div>
+  <div class="tabs" id="sTabs"><button data-t="rare" class="on">Редкие</button><button data-t="acc">Аксессуары</button><button data-t="mut">Мутации</button><button data-t="eff">Эффекты</button><button data-t="up">Ещё</button></div>
   <div class="grid3" id="sGrid"></div>
+</section>
+
+<!-- RUN: бег с препятствиями -->
+<section class="screen full" id="s-run" style="padding:0">
+  <canvas id="cRun" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></canvas>
+  <div class="btop" style="top:calc(14px + env(safe-area-inset-top))"><button id="rnExit" data-i="pause"></button></div>
 </section>
 
 <!-- BATTLE -->
 <section class="screen full" id="s-battle" style="padding:0">
   <canvas id="cBat" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></canvas>
-  <div class="btop"><button id="pMus"></button><button id="pAuto" data-i="robot">Авто</button><button id="pExit" data-i="pause"></button></div>
+  <div class="btop"><button id="pMus"></button><button id="pExit" data-i="pause"></button></div>
   <div class="pad" id="pad">
     <button class="pb blk" id="pBlock" data-i="shield"><small>БЛОК</small></button>
     <div class="pr">
@@ -255,7 +261,7 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
     <div class="row"><i style="--c:#FF453A" data-i="flame"></i><span><strong>Мощный</strong> — медленный замах, пробивает блок.</span></div>
     <div class="row"><i style="--c:#64D2FF" data-i="shield"></i><span><strong>Блок</strong> — держи. Нажал прямо перед ударом — <strong>парирование</strong>.</span></div>
     <div class="row"><i style="--c:#BF5AF2" data-i="bolt"></i><span><strong>Супер</strong> — когда шкала полна. У каждого вида свой.</span></div>
-    <div class="row"><i style="--c:#FF3B30" data-i="skull"></i><span>Выиграл 2 раунда нокаутом — успей нажать <strong>МОНСТРАЛИТИ</strong>.</span></div>
+    <div class="row"><i style="--c:#FF3B30" data-i="skull"></i><span>Выиграл решающий раунд нокаутом (2 победы, с другом — 3) — успей нажать <strong>МОНСТРАЛИТИ</strong>.</span></div>
     <button class="btn" style="margin-top:18px;max-width:340px">Понятно</button>
   </div>
   <div class="bres" id="bRes"><div class="big" id="rTitle"></div><div class="rw" id="rText"></div><div class="stack" id="rBtns"></div></div>
@@ -379,6 +385,13 @@ const MUTS = [{ bit: 1, n: 'Третий глаз', p: 25, e: '👁️' }, { bit
   { bit: 8, n: 'Крылышки', p: 35, e: '🪽' }, { bit: 16, n: 'Неон', p: 50, e: '💡' }];
 const UPS = [{ sku: 'egg', n: 'Яйцо монстра', p: 25, e: '🥚' }, { sku: 'slots', n: '+2 места в загоне', p: 30, e: '🏠' }, { sku: 'paint', n: 'Перекраска', p: 15, e: '🎨' }];
 const BREED_COST = 150, PAINT_COINS = 300;
+// редкие (платные) монстры — особый окрас-«порода», только внешность, стартуют с 1 уровня
+const SKINS = [null,
+  { id: 1, n: ['Золотой', 'Золотая'], p: 100, col: 'hsl(45,95%,52%)', glow: '#ffd34d', d: 'Сияет чистым золотом, по шкуре бегут блики' },
+  { id: 2, n: ['Кристальный', 'Кристальная'], p: 75, col: 'hsl(192,95%,62%)', glow: '#7fe3ff', d: 'Будто выточен изо льда, вокруг мерцают искры' },
+  { id: 3, n: ['Теневой', 'Теневая'], p: 75, col: 'hsl(272,70%,42%)', glow: '#b04dff', d: 'Тёмный, как ночь, с фиолетовым дымком' },
+  { id: 4, n: ['Огненный', 'Огненная'], p: 75, col: 'hsl(14,95%,48%)', glow: '#ff6a00', d: 'Раскалённый, как лава, от него летят искры' }];
+const skinAdj = (m, sk = m.skin) => SKINS[sk] ? SKINS[sk].n[[3, 4].includes(m.sp2 >= 0 && m.sp2 !== m.sp ? m.sp2 : m.sp) ? 1 : 0] : '';
 
 const stageOf = lv => { let s = 0; STAGES.forEach((st, i) => { if (lv >= st.min) s = i; }); return s; };
 const xpNeed = lv => 40 + lv * 25;
@@ -400,6 +413,10 @@ function bornFromId(m) {
   const t = parseInt(raw, 36); return t > 1.7e12 && t <= Date.now() ? t : Date.now();
 }
 function speciesLabel(m) {
+  if (m.skin && SKINS[m.skin]) return skinAdj(m) + ' ' + speciesBase(m).toLowerCase();
+  return speciesBase(m);
+}
+function speciesBase(m) {
   if (m.sp2 < 0 || m.sp2 === m.sp) return SPECIES[m.sp].name;
   return SPECIES[m.sp].pre + SPECIES[m.sp2].suf;
 }
@@ -1280,7 +1297,9 @@ function drawChudik(ctx, m, cx, cy, R, st = {}) {
   g.setTransform(k * R / 100, 0, 0, k * R / 100, ox, oy);
   if (st.dir === -1) g.scale(-1, 1);
   renderCreature(g, m, st, R);
-  g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-atop';
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  const SK = m.skin && SKINS[m.skin]; if (SK) applySkin(g, W, H, m.skin, st.t != null ? st.t : performance.now() / 1000);
+  g.globalCompositeOperation = 'source-atop';
   if (st.rage > 0) { g.fillStyle = `rgba(255,30,30,${st.rage * 0.35})`; g.fillRect(0, 0, W, H); }
   if (st.tint) { g.fillStyle = st.tint; g.fillRect(0, 0, W, H); }
   if (st.hurt > 0) { g.fillStyle = `rgba(255,255,255,${Math.min(1, st.hurt) * 0.85})`; g.fillRect(0, 0, W, H); }
@@ -1288,8 +1307,36 @@ function drawChudik(ctx, m, cx, cy, R, st = {}) {
   ctx.save();
   if (!st.noShadow) { const fl = (m.sp === 5 || m.sp2 === 5) ? 0.6 : 1; ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * (st.alpha != null ? st.alpha : 1)) + ')'; ctx.beginPath(); ctx.ellipse(cx + (st.shX || 0), cy + R * 0.99 + (st.shY || 0), R * 0.95 * fl, R * 0.13, 0, 0, Math.PI * 2); ctx.fill(); }
   if (st.alpha != null) ctx.globalAlpha *= st.alpha;
-  if ((m.mut & 16) || st.glowCol) { ctx.shadowColor = st.glowCol || hsl(m.h2, 100, 60); ctx.shadowBlur = R * 0.3 * k; }
+  if ((m.mut & 16) || st.glowCol || SK) { ctx.shadowColor = st.glowCol || (SK ? SK.glow : hsl(m.h2, 100, 60)); ctx.shadowBlur = R * (SK && !st.glowCol ? 0.22 : 0.3) * k; }
   ctx.drawImage(BUF, 0, 0, W, H, cx - ox / k, cy - oy / k, W / k, H / k);
+  ctx.restore();
+  if (SK && !st.noFx) skinFx(ctx, m.skin, cx, cy, R, st.t != null ? st.t : performance.now() / 1000, m.seed);
+}
+let BUF2 = null;
+function applySkin(g, W, H, sk, t) {
+  if (!BUF2) BUF2 = document.createElement('canvas');
+  if (BUF2.width < W || BUF2.height < H) { BUF2.width = Math.max(W, BUF2.width); BUF2.height = Math.max(H, BUF2.height); }
+  const b = BUF2.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(BUF, 0, 0); b.globalCompositeOperation = 'source-over';
+  g.save(); g.globalCompositeOperation = 'color'; g.fillStyle = SKINS[sk].col; g.fillRect(0, 0, W, H);
+  if (sk === 1) { g.globalCompositeOperation = 'overlay'; const lg = g.createLinearGradient(0, 0, 0, H); lg.addColorStop(0, 'rgba(255,250,210,.9)'); lg.addColorStop(0.55, 'rgba(255,200,60,.35)'); lg.addColorStop(1, 'rgba(120,70,0,.7)'); g.fillStyle = lg; g.fillRect(0, 0, W, H); }
+  if (sk === 2) { g.globalCompositeOperation = 'screen'; g.fillStyle = 'rgba(120,200,255,.28)'; g.fillRect(0, 0, W, H); }
+  if (sk === 3) { g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(70,40,110,.75)'; g.fillRect(0, 0, W, H); }
+  if (sk === 4) { g.globalCompositeOperation = 'overlay'; const lg = g.createLinearGradient(0, H, 0, 0); lg.addColorStop(0, 'rgba(255,220,60,.95)'); lg.addColorStop(0.5, 'rgba(255,90,0,.5)'); lg.addColorStop(1, 'rgba(90,0,0,.6)'); g.fillStyle = lg; g.fillRect(0, 0, W, H); }
+  g.globalCompositeOperation = 'destination-in'; g.drawImage(BUF2, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  if (sk === 1 || sk === 2) { const x = ((t * 0.45) % 1.6 - 0.3) * W, sg = g.createLinearGradient(x - W * 0.18, 0, x + W * 0.18, H * 0.35); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, `rgba(255,255,255,${sk === 1 ? 0.55 : 0.45})`); sg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = sg; g.fillRect(0, 0, W, H); }
+  if (sk === 3) { const rg = g.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, W * 0.5); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(20,0,40,.45)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); }
+  if (sk === 4) { g.fillStyle = `rgba(255,140,0,${0.12 + 0.1 * Math.sin(t * 5)})`; g.fillRect(0, 0, W, H); }
+  g.restore();
+}
+function skinFx(ctx, sk, cx, cy, R, t, seed) {
+  ctx.save();
+  for (let i = 0; i < 7; i++) {
+    const ph = (t * (sk === 4 ? 0.6 : 0.35) + i / 7 + (seed % 13) / 13) % 1, a = i * 2.4 + seed;
+    if (sk === 1 || sk === 2) { const x = cx + Math.cos(a) * R * (0.6 + 0.5 * ((i * 37) % 10) / 10), y = cy - R * 0.2 + Math.sin(a * 1.7) * R * 0.75, s = Math.sin(ph * Math.PI); ctx.globalAlpha = s; star(ctx, x, y, R * 0.07 * s + 0.5, sk === 1 ? '#fff6c8' : '#e8fbff', 4, 0.3); }
+    else if (sk === 4) { const x = cx + Math.sin(a) * R * 0.8 + Math.sin(t * 3 + i) * R * 0.08, y = cy + R * 0.6 - ph * R * 2; ctx.globalAlpha = 1 - ph; circ(ctx, x, y, R * 0.035 * (1 - ph) + 0.6, i % 2 ? '#ffd34d' : '#ff6a00'); }
+    else { const x = cx + Math.cos(a) * R * 0.75, y = cy + R * 0.5 - ph * R * 1.3; ctx.globalAlpha = 0.28 * (1 - ph); circ(ctx, x, y, R * (0.12 + ph * 0.25), '#5a2a8a'); }
+  }
   ctx.restore();
 }
 function renderCreature(g, m, st, R) {
@@ -1343,9 +1390,9 @@ function show(s, push = true) {
   $('#nav').classList.toggle('hide', !tabs.includes(s));
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
   if (tabs.includes(s)) backStack.length = 0;
-  if (tg && tg.BackButton) { try { (s !== 'home' && s !== 'onb' && s !== 'battle') ? tg.BackButton.show() : tg.BackButton.hide(); } catch (e) {} }
+  if (tg && tg.BackButton) { try { (s !== 'home' && s !== 'onb' && s !== 'battle' && s !== 'run') ? tg.BackButton.show() : tg.BackButton.hide(); } catch (e) {} }
   ({ home: renderHome, pen: renderPen, breed: renderBreed, shop: renderShop }[s] || (() => {}))();
-  auSetMusic(s === 'battle' ? 'battle' : 'menu');
+  auSetMusic(s === 'battle' || s === 'run' ? 'battle' : 'menu');
 }
 if (tg && tg.BackButton) tg.BackButton.onClick(() => { if ($('#ov').classList.contains('on')) return closeSheet(); show(backStack.pop() || 'home', false); });
 document.querySelectorAll('#nav button').forEach(b => b.onclick = () => { hap(); show(b.dataset.s); });
@@ -1455,7 +1502,19 @@ function soundSheet() {
 function musIcons() { const ic = svgI(S.musicOff ? 'musicOff' : 'music'); $('#hSnd').innerHTML = ic; $('#pMus').innerHTML = ic; $('#hSnd').style.opacity = S.musicOff ? 0.55 : 1; $('#pMus').style.opacity = S.musicOff ? 0.55 : 1; }
 function toggleMusic() { S.musicOff = !S.musicOff; save(); auInit(); auApplyVol(); musIcons(); toast(S.musicOff ? 'Музыка выключена' : 'Музыка включена', 1400); }
 $('#hSnd').onclick = toggleMusic; $('#pMus').onclick = toggleMusic; $('#hSound').onclick = soundSheet;
-$('#hTrain').onclick = () => { hap('medium'); startTraining(act()); };
+$('#hTrain').onclick = () => { hap('medium'); trainMenu(); };
+function trainLeft() { const today = new Date().toDateString(); if (S.trainDay !== today) return 5; return Math.max(0, 5 - (S.trainCount || 0)); }
+function trainMenu() {
+  const m = act(), left = trainLeft();
+  const sh = sheet(`<h3>Тренировка</h3><p class="sub" style="text-align:center;margin:0 0 12px">С наградой сегодня осталось: <b>${left} из 5</b>. Дальше можно тренироваться просто так.</p>
+  <div class="list" style="margin:0 0 12px">
+    <button class="li" id="tmBag"><i class="ic" style="--c:#FF453A">${svgI('target')}</i><span>Груша<br><small style="margin:0;font-size:13px">Техника: удары, комбо, блок и парирование</small></span><em>${svgI('chevR')}</em></button>
+    <button class="li" id="tmRun"><i class="ic" style="--c:#30D158">${svgI('bolt')}</i><span>Бег с препятствиями<br><small style="margin:0;font-size:13px">Выносливость: +здоровье в бою · ${m.sta || 0}/${STA_MAX}</small></span><em>${svgI('chevR')}</em></button>
+  </div><button class="btn ghost" id="tmX">Закрыть</button>`);
+  sh.querySelector('#tmX').onclick = closeSheet;
+  sh.querySelector('#tmBag').onclick = () => { closeSheet(); startTraining(m); };
+  sh.querySelector('#tmRun').onclick = () => { closeSheet(); startRun(m); };
+}
 $('#cHome').addEventListener('click', () => {
   homeAnim.sweat = Math.min(0.9, (homeAnim.sweat || 0) + 0.12); voice(act(), 'happy');
   const m = act(); hap('medium'); homeAnim.v = 520; homeAnim.sx = 1.25; homeAnim.sy = 0.75; homeAnim.chomp = 1;
@@ -1484,7 +1543,7 @@ function renderPen() {
 function monMenu(i) {
   const m = S.mons[i];
   const sh = sheet(`<h3>${esc(m.name)}</h3><div style="display:flex;justify-content:center" id="mmC"></div>
-  <p style="text-align:center;margin:4px 0;opacity:.8;font-size:14px">${speciesLabel(m)} • ${STAGES[stageOf(m.lv)].name} • ур. ${m.lv}<br>Побед: ${m.w} • Поражений: ${m.l}<br>Характер: ${quirkOf(m)}</p>
+  <p style="text-align:center;margin:4px 0;opacity:.8;font-size:14px">${speciesLabel(m)} • ${STAGES[stageOf(m.lv)].name} • ур. ${m.lv}<br>Побед: ${m.w} • Поражений: ${m.l}<br>💪 Выносливость: ${m.sta || 0}/${STA_MAX}${m.runBest ? ` • рекорд бега ${m.runBest} м` : ''}<br>Характер: ${quirkOf(m)}</p>
   <div class="stack">${i !== S.active ? '<button class="btn" id="mmA">⭐ Сделать главным</button>' : ''}
   <button class="btn pink" id="mmC2">Вызвать друга этим монстром</button>
   <button class="btn ghost" id="mmR">Переименовать</button>
@@ -1629,6 +1688,32 @@ function checkJubilee() {
   sh.querySelector('#jbS').onclick = () => { closeSheet(); makeCard(m, `${J.t}! ${J.e}`); };
 }
 
+/* ================== РЕДКИЕ МОНСТРЫ ================== */
+function rareSheet(sk) {
+  const K = SKINS[sk], cr = (S.rareCr && S.rareCr[sk]) || 0;
+  const sh = sheet(`<h3>${K.n[0]} монстр</h3><canvas id="rsC" style="width:100%;height:220px;display:block"></canvas>
+  <p style="text-align:center;margin:2px 0 4px;font-size:15px">${K.d}.</p>
+  <p class="sub" style="text-align:center;margin:0 0 12px">Вид выберешь сам из шести. Новичок начинает с 1 уровня — в бою он не сильнее обычного, зато его видно издалека.</p>
+  <div class="stack"><button class="btn" id="rsBuy">${cr ? 'Выбрать вид' : 'Купить — ' + K.p + ' ⭐'}</button><button class="btn ghost" id="rsX">Закрыть</button></div>`);
+  const cv = sh.querySelector('#rsC'), demo = [0, 1, 2, 3, 4, 5].map(sp => Object.assign(newMon(sp, { lv: 12, seed: 40 + sp * 9 }), { skin: sk }));
+  const fr = () => { if (!document.body.contains(cv)) return; const t = performance.now() / 1000; const { ctx, w, h } = fit(cv); ctx.clearRect(0, 0, w, h); const m = demo[Math.floor(t / 1.6) % 6]; drawChudik(ctx, m, w / 2, h * 0.55, h * 0.28, { t }); requestAnimationFrame(fr); };
+  fr();
+  sh.querySelector('#rsX').onclick = closeSheet;
+  sh.querySelector('#rsBuy').onclick = () => { closeSheet(); if (S.mons.length >= S.slots) return fullPen(); if (cr) rarePick(sk); else buyItem('mon_' + sk); };
+}
+function rarePick(sk) {
+  if (S.mons.length >= S.slots) return fullPen();
+  const K = SKINS[sk];
+  const sh = sheet(`<h3>Кем будет ${K.n[0].toLowerCase()} монстр?</h3><p class="sub" style="text-align:center;margin:0">Выбери вид. Выбрать можно только один.</p><div class="eggpick" id="rpG"></div>`);
+  const g = sh.querySelector('#rpG');
+  [0, 1, 2, 3, 4, 5].forEach(sp => {
+    const m = Object.assign(newMon(sp), { skin: sk }); const b = document.createElement('button'); b.appendChild(miniCanvas(m, 140));
+    b.insertAdjacentHTML('beforeend', `<span>${SPECIES[sp].name}</span>`);
+    b.onclick = () => { S.rareCr[sk] = Math.max(0, (S.rareCr[sk] || 1) - 1); save(); closeSheet(); setTimeout(() => hatchSheet(m, `${skinAdj(m)} ${SPECIES[sp].name.toLowerCase()}!`, () => { S.mons.push(m); S.active = S.mons.length - 1; save(); if (cur === 'pen') renderPen(); if (cur === 'home') renderHome(); }, 'Похвастаться'), 250); };
+    g.appendChild(b);
+  });
+}
+
 /* ================== ИНКУБАТОР ================== */
 const EGG_CD = 72 * 3600e3; // бесплатное яйцо раз в 3 дня
 const eggLeft = () => Math.max(0, (S.eggAt || 0) - Date.now());
@@ -1652,7 +1737,7 @@ function eggPick(paid) {
   if (S.mons.length >= S.slots) return fullPen();
   const have = new Set(S.mons.map(m => m.sp));
   const pool = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5).sort((a, b) => have.has(a) - have.has(b));
-  const opts = pool.slice(0, 3).map(sp => newMon(sp, { mut: Math.random() < 0.06 ? pick(MUTS).bit : 0 }));
+  const opts = pool.slice(0, 3).map(sp => Object.assign(newMon(sp, { mut: Math.random() < 0.06 ? pick(MUTS).bit : 0 }), Math.random() < 0.03 ? { skin: ri(2, 4) } : {}));
   const sh = sheet(`<h3>Выбери, кто вылупится</h3><p class="sub" style="text-align:center;margin:0">Тапни по монстру. Выбрать можно только одного.</p><div class="eggpick" id="epG"></div>`);
   const g = sh.querySelector('#epG');
   opts.forEach(m => {
@@ -1670,12 +1755,18 @@ $('#hInc').onclick = incubator; $('#penInc').onclick = incubator;
 setInterval(incLabel, 30e3);
 
 /* ================== ГАРДЕРОБ / МАГАЗИН ================== */
-let shopTab = 'acc';
+let shopTab = 'rare';
 document.querySelectorAll('#sTabs button').forEach(b => b.onclick = () => { shopTab = b.dataset.t; document.querySelectorAll('#sTabs button').forEach(x => x.classList.toggle('on', x === b)); renderShop(); });
 function renderShop() {
   const m = act(); $('#sName').textContent = m.name;
   const g = $('#sGrid'); g.innerHTML = '';
   const add = (e, n, state, label, fn) => { const d = document.createElement('div'); d.className = 'item'; d.innerHTML = `<div class="e">${e}</div><div class="n">${n}</div><div class="p ${state}">${label}</div>`; d.onclick = () => { hap(); fn(); }; g.appendChild(d); };
+  if (shopTab === 'rare') {
+    SKINS.slice(1).forEach(k => { const d = document.createElement('div'); d.className = 'item'; const pm = newMon(k.id === 1 ? 0 : k.id === 2 ? 3 : k.id === 3 ? 1 : 4, { lv: 15, seed: 300 + k.id * 17, h1: 200, h2: 40 }); pm.skin = k.id;
+      const mc = miniCanvas(pm, 120); mc.style.cssText = 'width:100%;max-width:96px;display:block;margin:0 auto'; d.appendChild(mc); d.insertAdjacentHTML('beforeend', `<div class="n">${k.n[0]} монстр</div><div class="p">${k.p} ⭐</div>`); d.onclick = () => { hap(); rareSheet(k.id); }; g.appendChild(d); });
+    g.insertAdjacentHTML('beforeend', '<div class="note" style="grid-column:1/-1;margin:0">Редкий монстр — особая порода: окрас, сияние и частицы в бою и в видео. Вид выбираешь сам, стартует с 1 уровня, так что победы не покупаются.</div>');
+    return;
+  }
   if (shopTab === 'acc') {
     add('🚫', 'Без аксессуара', m.acc === 0 ? 'on' : 'own', m.acc === 0 ? 'Надето' : 'Снять', () => { m.acc = 0; save(); renderShop(); });
     ACCS.slice(1).forEach(a => { const own = S.own.acc.includes(a.id); const on = m.acc === a.id; add(a.e, a.n, on ? 'on' : own ? 'own' : '', on ? 'Надето' : own ? 'Надеть' : `${a.p} ⭐`, () => { if (own) { m.acc = on ? 0 : a.id; save(); renderShop(); } else buyItem('acc_' + a.id); }); });
@@ -1701,6 +1792,7 @@ function skuInfo(sku) {
   if (k === 'acc') { const a = ACCS[+v]; return { title: a.n, price: a.p }; }
   if (k === 'eff') { const a = EFFS[+v]; return { title: 'Эффект «' + a.n + '»', price: a.p }; }
   if (k === 'mut') { const a = MUTS.find(x => x.bit === +v); return { title: 'Мутация «' + a.n + '»', price: a.p }; }
+  if (k === 'mon') { const a = SKINS[+v]; return { title: a.n[0] + ' монстр', price: a.p }; }
   const u = UPS.find(x => x.sku === sku); return { title: u.n, price: u.p };
 }
 function grant(sku) {
@@ -1710,6 +1802,7 @@ function grant(sku) {
   else if (k === 'eff' && !S.own.eff.includes(+v)) { S.own.eff.push(+v); m.eff = +v; }
   else if (k === 'mut') { S.own.mut |= +v; m.mut |= +v; }
   else if (sku === 'slots') S.slots += 2;
+  else if (k === 'mon') { S.rareCr = S.rareCr || {}; S.rareCr[v] = (S.rareCr[v] || 0) + 1; save(); setTimeout(() => rarePick(+v), 400); }
   else if (sku === 'egg') { S.eggCr = (S.eggCr || 0) + 1; save(); setTimeout(() => eggPick(true), 400); }
   else if (sku === 'paint') { repaint(m); }
   save(); hapN('success');
@@ -1775,7 +1868,7 @@ function mkF(m, side) {
   const s = SPECIES[m.sp], s2 = m.sp2 >= 0 && m.sp2 !== m.sp ? SPECIES[m.sp2] : null;
   let hp = s.hp, atk = s.atk, spd = s.spd;
   if (s2) { hp = (hp * 0.6 + s2.hp * 0.4) * 1.05; atk = (atk * 0.6 + s2.atk * 0.4) * 1.05; spd = (spd + s2.spd) / 2; }
-  hp = Math.round(hp * 1.3 * (1 + 0.13 * (m.lv - 1))); atk = atk * (1 + 0.11 * (m.lv - 1));
+  hp = Math.round(hp * 1.3 * (1 + 0.13 * (m.lv - 1)) * (1 + Math.min(STA_MAX, m.sta || 0) * 0.005)); atk = atk * (1 + 0.11 * (m.lv - 1));
   const tr = {}; if (s2) tr[m.sp2] = 0.5; tr[m.sp] = 1;
   return { m, side, maxHp: hp, hp, lag: hp, atk, spd, sf: clamp(1 - (spd - 5) * 0.04, 0.85, 1.12), tr, meter: 0, state: 'idle', st: 0, dur: 0, cur: null, blockStart: -9,
     lunge: 0, recoil: 0, hurt: 0, glow: 0, mouth: 0, rage: 0, puff: 0, split: false, raged: false, dizzy: 0, koT: 0, dodge: 0, combo: 0, lastHit: -9, wins: 0, twin: 0,
@@ -1785,14 +1878,15 @@ let B = null;
 function startBattle(me, op, opts) {
   $('.btop').classList.remove('tr');
   B = { me, op, opts, F: [mkF(me, 0), mkF(op, 1)], ar: pick(ARENAS), round: 1, phase: 'intro', pt: 0, time: 0, real: 0, timer: 45, timeScale: 1, hitstop: 0, shake: 0, flash: 0,
-    cam: { z: 1, tz: 1 }, parts: [], texts: [], timers: [], ann: null, banner: null, sup: null, combo: [null, null], shield: [0, 0], hold: false, auto: !!S.autoFight, done: false, clip: null, bg: null, lastT: 0,
+    cam: { z: 1, tz: 1 }, parts: [], texts: [], timers: [], ann: null, banner: null, sup: null, combo: [null, null], shield: [0, 0], hold: false, auto: false, done: false, clip: null, bg: null, lastT: 0,
     smart: clamp(0.32 + 0.035 * op.lv, 0.32, 0.78) * (opts.kind === 'chal' ? 1.1 : 1) };
-  $('#bRes').classList.remove('on'); $('#batFin').classList.add('hidden'); $('#pAuto').classList.toggle('on', B.auto);
+  $('#bRes').classList.remove('on'); $('#batFin').classList.add('hidden');
   show('battle');
   if (!S.tutFight) { $('#batTut').classList.remove('hidden'); B.paused = true; } else $('#batTut').classList.add('hidden');
-  ann('РАУНД 1', '', 1.1);
+  ann('РАУНД 1', NEED() > 2 ? 'бой до 3 побед' : '', 1.1);
 }
 $('#batTut').onclick = () => { S.tutFight = 1; save(); $('#batTut').classList.add('hidden'); if (B) { B.paused = false; B.pt = 0; } };
+const NEED = () => B && B.opts && B.opts.kind === 'chal' ? 3 : 2; // бои с друзьями — до 3 побед
 function ann(text, sub, dur = 1.2, col = '#ffd34d', size = 1) { if (B) B.ann = { text, sub, t0: B.real, dur, col, size }; if (/^(РАУНД|ФИНАЛ|ТРЕНИР)/.test(text)) sfx('gong'); else if (text === 'БОЙ!') sfx('fight'); }
 function addText(side, text, col, size = 1) { const p = fpos(side); B.texts.push({ x: p.x, y: p.y - B.G.Rf[side] * 1.3 - B.texts.filter(t => t.side === side).length * 26, text, col, size, t0: B.real, side }); }
 function addP(p) { B.parts.push(Object.assign({ age: 0, life: 0.6, vx: 0, vy: 0, g: 0, drag: 0.92, rot: 0, vr: 0 }, p)); }
@@ -1882,7 +1976,7 @@ function koRound(wi, timeUp) {
 function nextRound() {
   B.round++; B.timer = 45; B.phase = 'intro'; B.pt = 0; B.timeScale = 1; B.parts = []; B.texts = [];
   B.F.forEach(F => { Object.assign(F, { hp: F.maxHp, lag: F.maxHp, state: 'idle', st: 0, lunge: 0, recoil: 0, hurt: 0, glow: 0, mouth: 0, puff: 0, split: false, raged: false, dizzy: 0, koT: 0, ox: 0, oy: 0, sx: 1, sy: 1, alpha: 1, rot: 0, flip: false, combo: 0 }); });
-  ann(B.F[0].wins === 1 && B.F[1].wins === 1 ? 'ФИНАЛЬНЫЙ РАУНД' : 'РАУНД ' + B.round, '', 1.1);
+  ann(B.F[0].wins === NEED() - 1 && B.F[1].wins === NEED() - 1 ? 'ФИНАЛЬНЫЙ РАУНД' : 'РАУНД ' + B.round, NEED() > 2 && B.round === 2 ? 'до 3 побед' : '', 1.1);
 }
 
 /* ---- ИИ ---- */
@@ -1978,8 +2072,8 @@ function superStep(dt) {
     }
     case 5: {
       if (u < 0.2) A.alpha = 1 - k(0, 0.2);
-      else if (u < 0.3) { A.ox = dA * (gap + RD * 1.2); A.flip = true; A.alpha = k(0.2, 0.3); }
-      else if (u < 0.88) { A.alpha = 1; A.atkVis = Math.abs(Math.sin(S0.t * 9)); }
+      else if (u < 0.3) { A.ox = dA * (gap - RA * 0.7 - RD * 0.4); A.oy = RD * 0.75; A.alpha = k(0.2, 0.3); }
+      else if (u < 0.88) { A.alpha = 1; A.oy = RD * 0.75 + Math.sin(S0.t * 6) * 6; A.atkVis = Math.abs(Math.sin(S0.t * 9)); }
       else { A.alpha = 1 - k(0.88, 1); }
       [0.42, 0.56, 0.7].forEach(h => { const q = clamp((u - h) / 0.06, 0, 1); if (u > h && u < h + 0.08) { D.sy = 1 - Math.sin(q * Math.PI) * 0.4; D.sx = 1 + Math.sin(q * Math.PI) * 0.25; } });
       if (u > 0.84) { const q = k(0.84, 1); D.ox = -dA * gap * 0.25 * Math.sin(q * Math.PI); D.oy = Math.sin(q * Math.PI) * RD; D.rot = -dA * q * 6.28; D.sx = D.sy = 1; }
@@ -1991,6 +2085,8 @@ function superStep(dt) {
     if (A.m.sp === 5) addText(1 - S0.i, 'ШЛЁП!', '#fff', 1.4);
     if (S0.fin) { const cp = contact(S0.i); hitSfx('s' + A.m.sp); hitFx(cp, 1 - S0.i, 'heavy', false, 0); B.texts.pop(); hitstop(0.08); shake(9); hap('heavy'); }
     else strike(S0.i, 'super', h[1]); } });
+  // никто не уходит за край экрана
+  [0, 1].forEach(i => { const F = B.F[i], x = fpos(i).x, mg = G.Rf[i] * 0.85; if (x < mg) F.ox += mg - x; else if (x > G.w - mg) F.ox -= x - (G.w - mg); });
   if (u >= 1) endSuper();
 }
 function endSuper() {
@@ -2072,8 +2168,8 @@ function drawHUD(ctx, w, h, t) {
     if (hr > 0) { const g = ctx.createLinearGradient(0, y0, 0, y0 + bh); g.addColorStop(0, hr > 0.3 ? '#fff27a' : '#ffb3a0'); g.addColorStop(0.5, hr > 0.3 ? '#3fe07a' : '#ff5a3c'); g.addColorStop(1, hr > 0.3 ? '#18904a' : '#a0200c'); ctx.fillStyle = g; ctx.beginPath(); i === 0 ? rr(ctx, x, y0, bw * hr, bh, 5) : rr(ctx, x + bw * (1 - hr), y0, bw * hr, bh, 5); ctx.fill(); }
     ctx.fillStyle = '#fff'; ctx.font = 'italic 900 15px system-ui'; ctx.textAlign = i === 0 ? 'left' : 'right'; ctx.lineWidth = 3; ctx.strokeStyle = '#000';
     const nm = F.m.name.toUpperCase().slice(0, 11) + '  ур.' + F.m.lv; ctx.strokeText(nm, i === 0 ? x : x + bw, y0 + bh + 18); ctx.fillText(nm, i === 0 ? x : x + bw, y0 + bh + 18);
-    for (let k = 0; k < 2; k++) { const cx = i === 0 ? x + 6 + k * 16 : x + bw - 6 - k * 16; circ(ctx, cx, y0 + bh + 32, 6, k < F.wins ? '#ffd34d' : 'rgba(255,255,255,.18)'); }
-    const mw = bw * 0.62, mx = i === 0 ? x + 40 : x + bw - 40 - mw, my = y0 + bh + 27, mr = F.meter / 100, full = mr >= 1;
+    for (let k = 0; k < NEED(); k++) { const cx = i === 0 ? x + 6 + k * 16 : x + bw - 6 - k * 16; circ(ctx, cx, y0 + bh + 32, 6, k < F.wins ? '#ffd34d' : 'rgba(255,255,255,.18)'); }
+    const po = 12 + NEED() * 16, mw = Math.min(bw * 0.62, bw - po), mx = i === 0 ? x + po : x + bw - po - mw, my = y0 + bh + 27, mr = F.meter / 100, full = mr >= 1;
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); rr(ctx, mx, my, mw, 9, 4); ctx.fill();
     if (mr > 0) { ctx.save(); if (full) { ctx.shadowColor = '#4dd2ff'; ctx.shadowBlur = 12 + Math.sin(t * 10) * 6; } const mg = ctx.createLinearGradient(mx, 0, mx + mw, 0); mg.addColorStop(0, '#2a7bff'); mg.addColorStop(1, full ? '#aef4ff' : '#4dd2ff'); ctx.fillStyle = mg; ctx.beginPath(); i === 0 ? rr(ctx, mx, my, mw * mr, 9, 4) : rr(ctx, mx + mw * (1 - mr), my, mw * mr, 9, 4); ctx.fill(); ctx.restore(); }
   });
@@ -2105,7 +2201,7 @@ function stepBattle(dt, rdt) {
     if (B.timer <= 0) { const r0 = B.F[0].hp / B.F[0].maxHp, r1 = B.F[1].hp / B.F[1].maxHp; koRound(r0 >= r1 ? 0 : 1, true); } }
   }
   else if (ph === 'super' || ph === 'finisher') superStep(dt);
-  else if (ph === 'ko') { B.pt += rdt; if (B.pt > 1.0) B.timeScale = lerp(B.timeScale, 1, 0.1); if (B.pt > 2.4) { const W = B.F[B.koW]; if (W.wins >= 2) { if (B.timeUp) endMatch(); else { B.phase = 'finPrompt'; B.pt = 0; const L = B.F[1 - B.koW]; L.koT = 0; setS(L, 'stunned', 0); L.dizzy = 99; setS(W, 'idle', 0); W.oy = 0; ann('ДОБЕЙ ЕГО!', '', 1.6, '#ff2a2a', 1.2); if (B.koW === 0) $('#batFin').classList.remove('hidden'); } } else nextRound(); } }
+  else if (ph === 'ko') { B.pt += rdt; if (B.pt > 1.0) B.timeScale = lerp(B.timeScale, 1, 0.1); if (B.pt > 2.4) { const W = B.F[B.koW]; if (W.wins >= NEED()) { if (B.timeUp) endMatch(); else { B.phase = 'finPrompt'; B.pt = 0; const L = B.F[1 - B.koW]; L.koT = 0; setS(L, 'stunned', 0); L.dizzy = 99; setS(W, 'idle', 0); W.oy = 0; ann('ДОБЕЙ ЕГО!', '', 1.6, '#ff2a2a', 1.2); if (B.koW === 0) $('#batFin').classList.remove('hidden'); } } else nextRound(); } }
   else if (ph === 'finPrompt') { B.pt += rdt; if (B.koW === 1 && B.pt > 1.3) { if (Math.random() < 0.65) startSuper(1, true); else endMatch(); } else if (B.pt > 4) { $('#batFin').classList.add('hidden'); B.F[1 - B.koW].dizzy = 0; endMatch(); } }
   else if (ph === 'finEgg') { B.pt += rdt; const W = B.F[B.koW]; setS(W, 'win', 0); if (B.pt > 2.8) endMatch(); }
   if (ph !== 'finPrompt' && ph !== 'finEgg' && ph !== 'super' && ph !== 'finisher') {}
@@ -2121,14 +2217,15 @@ loops.battle = t => {
   const cv = $('#cBat'); const { ctx, w, h } = fit(cv);
   const now = performance.now() / 1000; const rdt = B.lastT ? Math.min(0.05, now - B.lastT) : 0.016; B.lastT = now; B.real += rdt;
   B.G = geo(w, h);
-  AU.intensity = clamp((1 - Math.min(B.F[0].hp / B.F[0].maxHp, B.train ? 1 : B.F[1].hp / B.F[1].maxHp)) * 0.8 + (!B.train && B.F[0].wins + B.F[1].wins >= 2 ? 0.35 : 0), 0, 1);
+  AU.intensity = clamp((1 - Math.min(B.F[0].hp / B.F[0].maxHp, B.train ? 1 : B.F[1].hp / B.F[1].maxHp)) * 0.8 + (!B.train && Math.max(B.F[0].wins, B.F[1].wins) >= NEED() - 1 ? 0.35 : 0), 0, 1);
   if (!B.bg || B.bg._w !== w || B.bg._h !== h) { B.bg = buildArena(w, h, B.G.gy); B.bg._w = w; B.bg._h = h; }
   let dt = rdt * B.timeScale; if (B.hitstop > 0) { B.hitstop -= rdt; dt = 0; }
   if (!B.paused && !B.done) for (let s = 0; s < 2; s++) stepBattle(dt / 2, rdt / 2);
   const G = B.G;
   ctx.save();
   const sx = (Math.random() - 0.5) * B.shake * 2, sy = (Math.random() - 0.5) * B.shake * 2;
-  const z = B.cam.z, fc = B.sup ? (fpos(0).x + fpos(1).x) / 2 : w / 2;
+  let z = B.cam.z, fc = w / 2;
+  if (B.sup) { const p0 = fpos(0), p1 = fpos(1), lo = Math.min(p0.x - G.Rf[0], p1.x - G.Rf[1]) - 14, hi = Math.max(p0.x + G.Rf[0], p1.x + G.Rf[1]) + 14; z = Math.min(z, Math.max(1, w / (hi - lo))); fc = (lo + hi) / 2; }
   B.cam.fx = lerp(B.cam.fx || w / 2, fc, Math.min(1, rdt * 4)); B.cam.fx = clamp(B.cam.fx, w / (2 * z), w - w / (2 * z));
   ctx.translate(w / 2 + sx, G.gy + sy); ctx.scale(z, z); ctx.translate(-B.cam.fx, -G.gy);
   ctx.drawImage(B.bg, 0, 0, w, h);
@@ -2175,7 +2272,6 @@ bindPress($('#pLight'), () => { if (B && !B.auto) { tryAct(0, 'light'); hap('lig
 bindPress($('#pHeavy'), () => { if (B && !B.auto) { tryAct(0, 'heavy'); hap('medium'); } });
 bindPress($('#pSuper'), () => { if (B && !B.auto) tryAct(0, 'super'); });
 bindPress($('#pBlock'), () => { if (B) B.hold = true; }, () => { if (B) B.hold = false; });
-$('#pAuto').onclick = () => { if (!B) return; B.auto = !B.auto; S.autoFight = B.auto; save(); $('#pAuto').classList.toggle('on', B.auto); toast(B.auto ? 'Автобой: монстр дерётся сам' : 'Управляешь ты!'); };
 $('#pExit').onclick = () => { if (!B || B.done) return; B.paused = true; const sh = sheet(`<h3>Пауза</h3><div class="stack"><button class="btn" id="pzGo">Продолжить</button><button class="btn gray" id="pzSnd">Звук</button><button class="btn gray" id="pzQuit">${B.train ? 'Завершить тренировку' : 'Сдаться'}</button></div>`); sheetHook = () => { if (B && !B.done) B.paused = false; }; sh.querySelector('#pzGo').onclick = closeSheet; sh.querySelector('#pzSnd').onclick = () => { sheetHook = null; soundSheet(); sheetHook = () => { if (B && !B.done) B.paused = false; }; }; sh.querySelector('#pzQuit').onclick = () => { closeSheet(); if (B.train) endTraining(); else { B.F[0].wins = 0; B.F[1].wins = 2; endMatch(); } }; };
 $('#batFin').onclick = () => { if (!B || B.phase !== 'finPrompt') return; $('#batFin').classList.add('hidden'); hap('heavy'); startClip(); startSuper(0, true); };
 document.addEventListener('keydown', e => { if (cur !== 'battle' || !B || B.auto) return; if (e.repeat) return; const k = e.key.toLowerCase(); if (k === 'j' || k === 'о') tryAct(0, 'light'); else if (k === 'k' || k === 'л') tryAct(0, 'heavy'); else if (k === ' ') { tryAct(0, 'super'); e.preventDefault(); } else if (k === 'l' || k === 'д') B.hold = true; });
@@ -2194,7 +2290,7 @@ function endMatch() {
   if (!B || B.done) return; B.done = true;
   if (B.rec && B.rec.state !== 'inactive') setTimeout(() => B && B.rec && B.rec.state !== 'inactive' && B.rec.stop(), 600);
   $('#batFin').classList.add('hidden');
-  const won = B.F[0].wins >= 2; const me = B.me, op = B.op;
+  const won = B.F[0].wins >= NEED(); const me = B.me, op = B.op;
   const xp = won ? 25 + op.lv * 6 : 10 + op.lv * 2; const coins = won ? 15 + op.lv * 3 + (B.flawless ? 10 : 0) : 5;
   const mt0 = markTier(me); const r = gainXp(me, xp); S.coins += coins; S.fights++; if (won) { S.wins++; me.w++; } else me.l++; const newMark = markTier(me) > mt0 ? MARKS[markTier(me)] : null;
   let gift = null;
@@ -2228,7 +2324,7 @@ function startTraining(me) {
     st: { dmg: 0, hits: 0, best: 0, parry: 0, blocked: 0, missed: 0 },
     drills: [{ k: 'combo', t: 'Комбо из 5 ударов', need: 5, n: 0 }, { k: 'heavy', t: '3 мощных удара', need: 3, n: 0 }, { k: 'parry', t: 'Парируй грушу 2 раза', need: 2, n: 0 }, { k: 'super', t: 'Супер-удар по груше', need: 1, n: 0 }] };
   B.F[0].meter = 50;
-  $('#bRes').classList.remove('on'); $('#batFin').classList.add('hidden'); $('#pAuto').classList.remove('on');
+  $('#bRes').classList.remove('on'); $('#batFin').classList.add('hidden');
   show('battle');
   if (!S.tutFight) { $('#batTut').classList.remove('hidden'); B.paused = true; } else $('#batTut').classList.add('hidden');
   ann('ТРЕНИРОВКА', 'выполни задания слева', 1.6, '#64D2FF');
@@ -2268,7 +2364,7 @@ function bagHit() {
   const P0 = B.F[0], b = B.F[1].bag, p = fpos(0), cp = { x: p.x + B.G.Rf[0] * 0.6, y: p.y - B.G.Rf[0] * 0.2 };
   if (P0.state === 'block') {
     if (B.time - P0.blockStart < PARRY_TR) { hitSfx('parry'); voice(P0.m, 'win', 0.1); B.st.parry++; drill('parry', 1); addText(0, 'ПАРИРОВАНИЕ!', '#64D2FF', 1.3); b.v = 3.4; blockFx(cp, 0, true); hitstop(0.12); shake(6); hap('heavy'); P0.meter = Math.min(100, P0.meter + 20); }
-    else { hitSfx('block'); B.st.blocked++; addText(0, 'РАНО! Жми, когда круг голубой', '#9fd0ff', 1.1); b.v = 1.4; blockFx(cp, 0, false); hap('light'); }
+    else { hitSfx('block'); B.st.blocked++; addText(0, 'РАНО! Жми блок прямо перед ударом', '#9fd0ff', 1.1); b.v = 1.4; blockFx(cp, 0, false); hap('light'); }
   } else { hitSfx('bag'); hitSfx('heavy'); voice(P0.m, 'hurt', 0.06); B.st.missed++; addText(0, 'ПРОПУСТИЛ!', '#FF9F0A', 1.1); setS(P0, 'stun', 0.5); P0.recoil = 1; P0.hurt = 0.8; P0.dizzy = 0.5; b.v = 0.5; hitFx(cp, 0, 'heavy', false, 0); B.texts.pop(); shake(9); hitstop(0.08); hap('heavy'); }
 }
 function drawBag(ctx, F, t) {
@@ -2296,16 +2392,6 @@ function drawBag(ctx, F, t) {
   ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.beginPath(); rr(ctx, -W * 0.7, -H * 0.85, W * 0.22, H * 1.6, W * 0.11); ctx.fill();
   if (F.hurt > 0) { ctx.fillStyle = `rgba(255,255,255,${F.hurt * 0.55})`; ctx.fillRect(-W, -H, W * 2, H * 2); }
   ctx.restore(); ctx.restore();
-  // подсказка тайминга: круг сжимается к моменту удара, голубой — жми блок
-  const left = b.impactAt != null ? b.impactAt - B.time : -1;
-  if (left > -0.05 && left < 0.95 && (b.charge > 0 || (b.swing && !b.hit))) {
-    const P0 = fpos(0), R0 = G.Rf[0], cx = P0.x, cy = P0.y, now = left <= PARRY_TR, rr2 = R0 * (1.05 + Math.max(0, left) * 1.9);
-    ctx.save(); ctx.lineWidth = now ? 7 : 4; ctx.strokeStyle = now ? '#64D2FF' : 'rgba(255,159,10,.8)'; ctx.globalAlpha = now ? 0.95 : 0.7;
-    ctx.beginPath(); ctx.arc(cx, cy, rr2, 0, 7); ctx.stroke();
-    ctx.globalAlpha = 0.5; ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, R0 * 1.05, 0, 7); ctx.stroke();
-    if (now) { ctx.globalAlpha = 1; ctx.font = `900 ${Math.round(R0 * 0.42)}px -apple-system,system-ui`; ctx.textAlign = 'center'; ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.strokeText('БЛОК!', cx, cy - rr2 - 10); ctx.fillStyle = '#64D2FF'; ctx.fillText('БЛОК!', cx, cy - rr2 - 10); }
-    ctx.restore();
-  }
 }
 function drawTrainHUD(ctx, w, h, t) {
   const y0 = 14, P0 = B.F[0];
@@ -2343,11 +2429,119 @@ function endTraining() {
   }, 300);
 }
 
+/* ================== БЕГ С ПРЕПЯТСТВИЯМИ (выносливость) ================== */
+const STA_MAX = 20; // каждая единица выносливости = +0.5% здоровья в бою (макс +10%)
+let RN = null;
+function startRun(m) {
+  RN = { m, t: 0, dist: 0, speed: 1, y: 0, vy: 0, air: 0, jumps: 0, lives: 3, inv: 0, obs: [], coins: [], parts: [], next: 1.4, cNext: 0.8, got: 0, combo: 0, time: 40, phase: 'intro', pt: 0, done: false, hurtT: 0, said: 0, lastT: 0, paused: false, texts: [] };
+  show('run'); voice(m, 'happy', 0.3);
+}
+function runJump() {
+  if (!RN || RN.done || RN.paused) return;
+  if (RN.phase === 'intro') return;
+  if (RN.air === 0 || RN.jumps < 2) { RN.vy = RN.jumps === 0 ? 5.6 : 4.6; RN.jumps++; RN.air = 1; hap('light');
+    if (eggOk()) { const t = AU.ctx.currentTime, o = O('sine', RN.jumps === 1 ? 260 : 360, t), g = G(0); o.frequency.exponentialRampToValueAtTime(RN.jumps === 1 ? 620 : 860, t + 0.12); envD(g, t, 0.16, 0.004, 0.12); o.connect(g); out(g, 'f', 0.12); o.start(t); o.stop(t + 0.2); }
+    if (RN.jumps === 2) for (let i = 0; i < 8; i++) RN.parts.push({ x: 0, y: RN.y, vx: rnd(-1, 1), vy: rnd(-1.2, -0.2), life: 0.5, c: '#fff', r: rnd(0.03, 0.06) });
+  }
+}
+(() => { const cv = $('#cRun'); cv.addEventListener('pointerdown', e => { e.preventDefault(); runJump(); }); document.addEventListener('keydown', e => { if (cur === 'run' && (e.key === ' ' || e.key === 'ArrowUp')) runJump(); }); })();
+$('#rnExit').onclick = () => { if (!RN || RN.done) return; RN.paused = true; const sh = sheet(`<h3>Пауза</h3><div class="stack"><button class="btn" id="rzGo">Продолжить</button><button class="btn ghost" id="rzQ">Закончить забег</button></div>`); sheetHook = () => { if (RN) { RN.paused = false; RN.lastT = 0; } }; sh.querySelector('#rzGo').onclick = closeSheet; sh.querySelector('#rzQ').onclick = () => { closeSheet(); endRun(); }; };
+const RUN_OBS = [
+  { k: 'cone', w: 0.42, h: 0.62 }, { k: 'rock', w: 0.6, h: 0.48 }, { k: 'hurdle', w: 0.26, h: 0.8 }, { k: 'log', w: 1.1, h: 0.42 },
+  { k: 'bat', w: 0.6, h: 0.42, fly: 1.3 }, { k: 'barrel', w: 0.62, h: 0.78 }];
+function runStep(dt) {
+  const r = RN; r.t += dt;
+  if (r.phase === 'intro') { r.pt += dt; if (r.pt > 1.6) { r.phase = 'go'; ann2('БЕГИ!'); } return; }
+  if (r.phase === 'end') return;
+  r.time -= dt; r.speed = 1 + Math.min(0.9, (40 - r.time) * 0.022);
+  const v = r.speed * 2.6; r.dist += v * dt * 2.2;
+  // прыжок: единицы — радиусы монстра
+  if (r.air) { r.vy -= 10 * dt; r.y += r.vy * dt; if (r.y <= 0) { r.y = 0; r.vy = 0; r.air = 0; r.jumps = 0; for (let i = 0; i < 5; i++) r.parts.push({ x: rnd(-0.4, 0.4), y: 0, vx: rnd(-0.6, 0.6), vy: rnd(-0.6, -0.1), life: 0.4, c: 'rgba(230,200,170,.8)', r: rnd(0.04, 0.09), dust: 1 }); } }
+  r.next -= dt; if (r.next <= 0) { const pool = r.time > 30 ? RUN_OBS.slice(0, 3) : RUN_OBS; const o = Object.assign({ x: 6 }, pick(pool)); r.obs.push(o); if (r.time < 22 && Math.random() < 0.3 && !o.fly) r.obs.push(Object.assign({ x: 6 + o.w + 1.6 }, RUN_OBS[0])); r.next = rnd(1.0, 1.7) / Math.sqrt(r.speed); }
+  r.cNext -= dt; if (r.cNext <= 0) { const n = ri(3, 5), hy = Math.random() < 0.5 ? 0.6 : 2.2; for (let i = 0; i < n; i++) r.coins.push({ x: 6 + i * 0.55, y: hy + (hy > 1 ? Math.sin(i / (n - 1) * Math.PI) * 0.5 : 0) }); r.cNext = rnd(1.6, 2.8); }
+  r.obs.forEach(o => o.x -= v * dt); r.coins.forEach(c => c.x -= v * dt);
+  r.obs = r.obs.filter(o => o.x > -3); r.coins = r.coins.filter(c => c.x > -3 && !c.got);
+  if (r.inv > 0) r.inv -= dt; if (r.hurtT > 0) r.hurtT -= dt;
+  // столкновения: монстр — круг (0, y+0.75) r 0.5 (чуть меньше рисунка — честнее)
+  const my = r.y + 0.75;
+  r.obs.forEach(o => { if (o.hitDone) return; const bx = o.x, by = o.fly ? o.fly : 0, nx = clamp(0, bx - o.w / 2, bx + o.w / 2), ny = clamp(my, by, by + o.h);
+    if (Math.hypot(nx, ny - my) < 0.5) { o.hitDone = 1; if (r.inv > 0) return; r.lives--; r.inv = 1.2; r.hurtT = 0.4; r.combo = 0; hitSfx('jab'); voice(r.m, 'hurt', 0.02); hap('heavy'); rnText('ОЙ!', '#ff6b6b'); if (r.lives <= 0) { r.phase = 'end'; setTimeout(endRun, 900); } }
+    else if (!o.passed && o.x < -0.6) { o.passed = 1; r.combo++; if (r.combo % 5 === 0) { rnText(r.combo + ' ПОДРЯД!', '#59e36b'); voice(r.m, 'happy', 0); } } });
+  r.coins.forEach(c => { if (Math.hypot(c.x, c.y - my) < 0.62) { c.got = 1; r.got++; if (eggOk()) bell(nf(84 + (r.got % 3) * 4), AU.ctx.currentTime, 0.04, 'f', 0.5); } });
+  r.parts.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; if (!p.dust) p.vy -= 3 * dt; p.life -= dt; }); r.parts = r.parts.filter(p => p.life > 0);
+  r.texts.forEach(x => x.t += dt); r.texts = r.texts.filter(x => x.t < 1.1);
+  if (r.time <= 0) { r.time = 0; r.phase = 'end'; ann2('ФИНИШ!'); voice(r.m, 'win', 0.1); setTimeout(endRun, 1100); }
+}
+function rnText(s, c) { if (RN) RN.texts.push({ s, c, t: 0 }); }
+function ann2(s) { if (RN) RN.ann = { s, t0: RN.t }; if (eggOk()) jubSound(); }
+loops.run = now => {
+  const r = RN; if (!r) return; const cv = $('#cRun'); const { ctx, w, h } = fit(cv);
+  let dt = r.lastT ? Math.min(0.05, now - r.lastT) : 0; r.lastT = now; if (r.paused || r.done) dt = 0;
+  if (dt) for (let i = 0; i < 2; i++) runStep(dt / 2);
+  const R = Math.min(w * 0.13, h * 0.085), gy = h * 0.72, U = R, X0 = w * 0.26, t = r.t;
+  const scroll = r.dist * U * 0.45;
+  // небо и фон
+  const sg = ctx.createLinearGradient(0, 0, 0, gy); sg.addColorStop(0, '#1d2350'); sg.addColorStop(0.55, '#7a3f7a'); sg.addColorStop(1, '#f19a5a'); ctx.fillStyle = sg; ctx.fillRect(0, 0, w, gy + 2);
+  circ(ctx, w * 0.75, gy * 0.42, R * 1.3, 'rgba(255,214,140,.9)');
+  const hills = (sp, col, amp, base) => { ctx.beginPath(); ctx.moveTo(0, gy); for (let x = 0; x <= w + 20; x += 20) { const q = (x + scroll * sp) / w; ctx.lineTo(x, gy - base - Math.sin(q * 5.1) * amp - Math.sin(q * 11.3) * amp * 0.4); } ctx.lineTo(w, gy); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+  hills(0.15, '#5a3566', R * 0.6, R * 1.4); hills(0.35, '#3b2348', R * 0.45, R * 0.6);
+  // беговая дорожка
+  const tg2 = ctx.createLinearGradient(0, gy, 0, h); tg2.addColorStop(0, '#c4553a'); tg2.addColorStop(1, '#6a2416'); ctx.fillStyle = tg2; ctx.fillRect(0, gy, w, h - gy);
+  ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(0, gy, w, 3); ctx.fillRect(0, gy + (h - gy) * 0.45, w, 2);
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; const step = U * 2.2; for (let x = -(scroll % step); x < w; x += step) ctx.fillRect(x, gy + (h - gy) * 0.22, U * 0.9, 3);
+  const px = u => X0 + u * U, py = u => gy - u * U;
+  // монеты
+  r.coins.forEach(c => { const s = Math.abs(Math.cos(t * 5 + c.x)); ctx.save(); ctx.translate(px(c.x), py(c.y)); ctx.scale(Math.max(0.2, s), 1); circ(ctx, 0, 0, U * 0.2, '#ffd34d'); ctx.lineWidth = 2; ctx.strokeStyle = '#a86b00'; ctx.stroke(); circ(ctx, -U * 0.05, -U * 0.05, U * 0.07, '#fff6c8'); ctx.restore(); });
+  // препятствия
+  r.obs.forEach(o => drawObs(ctx, o, px(o.x), py(o.fly || 0), U, t));
+  // монстр
+  const run = r.air ? 0 : Math.abs(Math.sin(t * 13)), mx = X0, my = gy - r.y * U;
+  const blink = r.inv > 0 && Math.floor(r.inv * 12) % 2 === 0;
+  if (!blink) drawChudik(ctx, r.m, mx, my - R, R, { t, dir: 1, jump: run * 0.05, sx: r.air ? 0.94 : 1 + run * 0.03, sy: r.air ? 1.07 : 1 - run * 0.04, rot: r.air ? -0.08 : 0.05, mouth: r.hurtT > 0 ? 1 : 0.2, hurt: r.hurtT > 0 ? 0.6 : 0, shY: r.y * U, noFx: false, sweat: 0.4 + (40 - r.time) / 60 });
+  r.parts.forEach(p => { ctx.globalAlpha = clamp(p.life * 2, 0, 1); circ(ctx, mx + p.x * U, gy - p.y * U, p.r * U, p.c); }); ctx.globalAlpha = 1;
+  // HUD
+  const top = 16 + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0);
+  ctx.textAlign = 'left'; ctx.font = '800 22px -apple-system,system-ui,sans-serif'; ctx.fillStyle = '#fff';
+  ctx.fillText(`${Math.floor(r.dist)} м`, 16, top + 22); ctx.font = '600 15px -apple-system,system-ui,sans-serif'; ctx.fillStyle = '#ffd34d'; ctx.fillText(`🪙 ${r.got}`, 16, top + 46);
+  ctx.textAlign = 'center'; ctx.font = '800 26px -apple-system,system-ui,sans-serif'; ctx.fillStyle = r.time < 6 ? '#ff6b6b' : '#fff'; ctx.fillText(Math.ceil(r.time), w / 2, top + 24);
+  for (let i = 0; i < 3; i++) { ctx.globalAlpha = i < r.lives ? 1 : 0.25; ctx.font = '20px sans-serif'; ctx.fillText('❤️', w / 2 - 26 + i * 26, top + 52); } ctx.globalAlpha = 1;
+  r.texts.forEach(x => { ctx.globalAlpha = 1 - x.t; ctx.font = '900 26px -apple-system,system-ui,sans-serif'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.strokeText(x.s, mx + U * 0.6, my - R * 2.4 - x.t * 40); ctx.fillStyle = x.c; ctx.fillText(x.s, mx + U * 0.6, my - R * 2.4 - x.t * 40); }); ctx.globalAlpha = 1;
+  if (r.phase === 'intro') { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.font = '900 30px -apple-system,system-ui,sans-serif'; ctx.fillText('БЕГ С ПРЕПЯТСТВИЯМИ', w / 2, h * 0.3); ctx.font = '600 17px -apple-system,system-ui,sans-serif'; ctx.fillText('Тап — прыжок, второй тап в воздухе — ещё выше', w / 2, h * 0.3 + 34); ctx.fillText('Летучих мышей лучше пропустить понизу', w / 2, h * 0.3 + 58); ctx.font = '900 54px -apple-system,system-ui,sans-serif'; ctx.fillStyle = '#ffd34d'; ctx.fillText(Math.max(1, Math.ceil(1.6 - r.pt)), w / 2, h * 0.3 + 130); }
+  if (r.ann && t - r.ann.t0 < 1) { const q = t - r.ann.t0; ctx.globalAlpha = 1 - q; ctx.font = `900 ${Math.round(56 + q * 20)}px -apple-system,system-ui,sans-serif`; ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.strokeText(r.ann.s, w / 2, h * 0.38); ctx.fillStyle = '#ffd34d'; ctx.fillText(r.ann.s, w / 2, h * 0.38); ctx.globalAlpha = 1; }
+};
+function drawObs(ctx, o, x, y, U, t) {
+  ctx.save(); ctx.translate(x, y); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1a0d08'; const w = o.w * U, h = o.h * U;
+  if (o.k === 'cone') { ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(-w * 0.12, -h); ctx.lineTo(w * 0.12, -h); ctx.lineTo(w / 2, 0); ctx.closePath(); ctx.fillStyle = '#ff7a1a'; ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.fillRect(-w * 0.3, -h * 0.55, w * 0.6, h * 0.14); ctx.fillStyle = '#ff7a1a'; ctx.fillRect(-w * 0.62, -h * 0.08, w * 1.24, h * 0.1); }
+  else if (o.k === 'rock') { ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.quadraticCurveTo(-w * 0.55, -h * 0.8, -w * 0.1, -h); ctx.quadraticCurveTo(w * 0.4, -h * 1.05, w / 2, 0); ctx.closePath(); const g = ctx.createLinearGradient(0, -h, 0, 0); g.addColorStop(0, '#9aa0ad'); g.addColorStop(1, '#4b505c'); ctx.fillStyle = g; ctx.fill(); ctx.stroke(); }
+  else if (o.k === 'hurdle') { ctx.fillStyle = '#ddd'; ctx.fillRect(-w / 2, -h, w * 0.18, h); ctx.fillRect(w / 2 - w * 0.18, -h, w * 0.18, h); ctx.strokeRect(-w / 2, -h, w * 0.18, h); ctx.strokeRect(w / 2 - w * 0.18, -h, w * 0.18, h); ctx.fillStyle = '#e8203a'; ctx.fillRect(-w * 0.9, -h, w * 1.8, h * 0.2); ctx.strokeRect(-w * 0.9, -h, w * 1.8, h * 0.2); ctx.fillStyle = '#fff'; ctx.fillRect(-w * 0.2, -h, w * 0.4, h * 0.2); }
+  else if (o.k === 'log') { ctx.beginPath(); rr(ctx, -w / 2, -h, w, h, h / 2); ctx.fillStyle = '#8a5a2b'; ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(w / 2 - h / 2, -h / 2, h * 0.38, h * 0.45, 0, 0, 7); ctx.fillStyle = '#d6a76a'; ctx.fill(); ctx.stroke(); ctx.strokeStyle = 'rgba(60,30,10,.5)'; ctx.beginPath(); ctx.moveTo(-w * 0.35, -h * 0.55); ctx.lineTo(w * 0.15, -h * 0.55); ctx.stroke(); }
+  else if (o.k === 'barrel') { ctx.beginPath(); rr(ctx, -w / 2, -h, w, h, w * 0.2); ctx.fillStyle = '#b5651d'; ctx.fill(); ctx.stroke(); ctx.fillStyle = '#555'; [0.2, 0.75].forEach(f => { ctx.fillRect(-w / 2, -h * f - 3, w, 6); }); }
+  else if (o.k === 'bat') { const f = Math.sin(t * 18) * 0.6; ctx.translate(0, -h / 2); ctx.fillStyle = '#2b1838'; [-1, 1].forEach(sd => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(sd * w * 0.4, -h * (0.8 + f), sd * w * 0.75, -h * 0.1 * f); ctx.quadraticCurveTo(sd * w * 0.5, h * 0.2, 0, h * 0.15); ctx.fill(); ctx.stroke(); }); circ(ctx, 0, 0, h * 0.32, '#3d2250'); ctx.stroke(); circ(ctx, -h * 0.12, -h * 0.05, h * 0.07, '#ffd34d'); circ(ctx, h * 0.12, -h * 0.05, h * 0.07, '#ffd34d'); }
+  ctx.restore();
+}
+function endRun() {
+  const r = RN; if (!r || r.done) return; r.done = true;
+  const m = r.m, meters = Math.floor(r.dist), today = new Date().toDateString();
+  if (S.trainDay !== today) { S.trainDay = today; S.trainCount = 0; }
+  let xp = 0, sta = 0; const rewarded = (S.trainCount || 0) < 5;
+  if (rewarded) { xp = 8 + Math.min(40, Math.floor(meters / 12)); S.trainCount = (S.trainCount || 0) + 1; if (meters >= 120 && (m.sta || 0) < STA_MAX) { sta = meters >= 260 && r.lives === 3 ? 2 : 1; m.sta = Math.min(STA_MAX, (m.sta || 0) + sta); } }
+  const coins = r.got; S.coins += coins; const g = gainXp(m, xp); const rec = meters > (m.runBest || 0); if (rec) m.runBest = meters; save();
+  const sh = sheet(`<h3>${r.lives > 0 ? 'Финиш! 🏁' : 'Забег окончен'}</h3><canvas id="reC" style="width:100%;height:150px;display:block"></canvas>
+  <p style="text-align:center;font-size:16px;margin:6px 0">Дистанция: <b>${meters} м</b>${rec ? ' — новый рекорд!' : ''}<br>Монетки: <b>+${coins} 🪙</b>${xp ? ` · Опыт: <b>+${xp}</b>` : ''}</p>
+  <p class="sub" style="text-align:center;margin:0 0 12px">${sta ? `💪 Выносливость +${sta}: теперь ${m.sta}/${STA_MAX} (+${(m.sta * 0.5).toFixed(1)}% здоровья в бою)` : !rewarded ? 'Награды за сегодня уже собраны — приходи завтра.' : (m.sta || 0) >= STA_MAX ? 'Выносливость на максимуме!' : 'Пробеги больше 120 м, чтобы прокачать выносливость.'}${g.ups ? `<br>⬆️ Уровень ${m.lv}!` : ''}</p>
+  <div class="stack"><button class="btn" id="reA">Ещё забег</button><button class="btn ghost" id="reH">Домой</button></div>`);
+  const cv = sh.querySelector('#reC'); const fr = () => { if (!document.body.contains(cv)) return; const t = performance.now() / 1000; const c = fit(cv); c.ctx.clearRect(0, 0, c.w, c.h); drawChudik(c.ctx, m, c.w / 2, c.h * 0.56, c.h * 0.3, { t, jump: Math.max(0, Math.sin(t * 6)) * 0.12 }); requestAnimationFrame(fr); }; fr();
+  hapN(r.lives > 0 ? 'success' : 'warning');
+  sheetHook = () => { if (cur === 'run' && RN === r) { RN = null; show('home'); } };
+  sh.querySelector('#reA').onclick = () => { sheetHook = null; closeSheet(); startRun(m); };
+  sh.querySelector('#reH').onclick = () => closeSheet();
+}
+
 /* ================== ВЫЗОВ ДРУГА (вирусная ссылка) ================== */
 const b64u = bytes => btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64u = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Array.from(atob(s), c => c.charCodeAt(0)); };
 function encodeMon(m) {
-  const head = [m.sp, m.sp2 < 0 ? 7 : m.sp2, Math.min(255, m.lv), (m.h1 >> 1) & 255, (m.h2 >> 1) & 255, (m.pat & 15) | (Math.min(6, markTier(m)) << 4), m.eye, m.mouth, m.acc, m.eff, (m.mut & 31) | (Math.min(4, m.noReg ? 0 : jubTier(m)) << 5), (m.seed >> 8) & 255, m.seed & 255];
+  const head = [m.sp, m.sp2 < 0 ? 7 : m.sp2, Math.min(255, m.lv), (m.h1 >> 1) & 255, (m.h2 >> 1) & 255, (m.pat & 15) | (Math.min(6, markTier(m)) << 4), (m.eye & 15) | ((m.skin || 0) << 4), m.mouth, m.acc, m.eff, (m.mut & 31) | (Math.min(4, m.noReg ? 0 : jubTier(m)) << 5), (m.seed >> 8) & 255, m.seed & 255];
   let name = m.name; let nb = Array.from(new TextEncoder().encode(name));
   while (nb.length > 31) { name = name.slice(0, -1); nb = Array.from(new TextEncoder().encode(name)); }
   const all = head.concat(nb); let c = 7; all.forEach((x, i) => c = (c * 31 + x + i) & 255);
@@ -2357,10 +2551,10 @@ function decodeMon(s) {
   try {
     const b = unb64u(s); const c0 = b[0], all = b.slice(1); let c = 7; all.forEach((x, i) => c = (c * 31 + x + i) & 255);
     if (c !== c0 || all.length < 13) return null;
-    let [sp, sp2, lv, h1, h2, pat, eye, mouth, acc, eff, mut, s1, s2] = all; const mt = pat >> 4, jt = mut >> 5; pat &= 15; mut &= 31;
+    let [sp, sp2, lv, h1, h2, pat, eye, mouth, acc, eff, mut, s1, s2] = all; const mt = pat >> 4, jt = mut >> 5, skin = eye >> 4; pat &= 15; mut &= 31; eye &= 15;
     if (sp > 5 || pat > 4 || eye > 4 || mouth > 4 || acc > 8 || eff > 5) return null;
     const name = new TextDecoder().decode(new Uint8Array(all.slice(13))) || 'Монстр';
-    return Object.assign(newMon(sp, { sp2: sp2 === 7 ? -1 : sp2, lv: Math.max(1, lv), h1: h1 * 2, h2: h2 * 2, pat, eye, mouth, acc, eff, mut, seed: (s1 << 8) | s2, name }), { id: 'chal', mt, jt });
+    return Object.assign(newMon(sp, { sp2: sp2 === 7 ? -1 : sp2, lv: Math.max(1, lv), h1: h1 * 2, h2: h2 * 2, pat, eye, mouth, acc, eff, mut, seed: (s1 << 8) | s2, name }), { id: 'chal', mt, jt, skin: skin <= 4 ? skin : 0 });
   } catch (e) { return null; }
 }
 const challengeLink = m => `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=c${encodeMon(m)}`;
@@ -2381,7 +2575,7 @@ function readStartParam() {
 }
 function openChallenge() {
   const op = pendingChallenge; if (!op) return; const me = act();
-  $('#chSub').textContent = `${op.name} вызывает тебя на бой!`;
+  $("#chSub").textContent = `${op.name} вызывает тебя на бой до 3 побед!`;
   $('#chMe').textContent = me.name; $('#chMeS').textContent = `${speciesLabel(me)} • ур.${me.lv}`;
   $('#chOp').textContent = op.name; $('#chOpS').textContent = `${speciesLabel(op)} • ур.${op.lv}` + (op.lv > me.lv + 2 ? ` → бой на ур.${me.lv + 2}` : '');
   show('chal');
