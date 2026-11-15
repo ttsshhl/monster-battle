@@ -2265,7 +2265,9 @@ function stepBattle(dt, rdt) {
     B.timer -= dt;
     const P0 = B.F[0];
     if (B.auto) aiThink(0, dt);
-    else { if (B.hold && P0.state === 'idle') { setS(P0, 'block', 0); P0.blockStart = B.time; } if (!B.hold && P0.state === 'block') setS(P0, 'idle', 0); }
+    else { const tap = B.time - (B.blockTap ?? -9) < 0.4; // короткий тап по «Блок» держит защиту 0.4 с — на телефоне жмут, а не держат
+      if ((B.hold || tap) && (P0.state === 'idle' || P0.state === 'recover')) { setS(P0, 'block', 0); P0.blockStart = Math.max(B.blockTap ?? B.time, B.time - 0.05); }
+      if (!B.hold && !tap && P0.state === 'block') setS(P0, 'idle', 0); }
     if (B.train) { bagUpdate(dt); if (B.timer <= 0) { B.phase = 'end'; ann('ВРЕМЯ!', '', 1.2, '#fff'); setTimeout(endTraining, 900); } }
     else { aiThink(1, dt);
     if (B.timer <= 0) { const r0 = B.F[0].hp / B.F[0].maxHp, r1 = B.F[1].hp / B.F[1].maxHp; koRound(r0 >= r1 ? 0 : 1, true); } }
@@ -2345,10 +2347,10 @@ function bindPress(el, down, up) { el.addEventListener('pointerdown', e => { e.p
 bindPress($('#pLight'), () => { if (B && !B.auto) { tryAct(0, 'light'); hap('light'); } });
 bindPress($('#pHeavy'), () => { if (B && !B.auto) { tryAct(0, 'heavy'); hap('medium'); } });
 bindPress($('#pSuper'), () => { if (B && !B.auto) tryAct(0, 'super'); });
-bindPress($('#pBlock'), () => { if (B) B.hold = true; }, () => { if (B) B.hold = false; });
+bindPress($('#pBlock'), () => { if (B) { B.hold = true; B.blockTap = B.time; } }, () => { if (B) B.hold = false; });
 $('#pExit').onclick = () => { if (!B || B.done) return; B.paused = true; const sh = sheet(`<h3>Пауза</h3><div class="stack"><button class="btn" id="pzGo">Продолжить</button><button class="btn gray" id="pzSnd">Звук</button><button class="btn gray" id="pzQuit">${B.train ? 'Завершить тренировку' : 'Сдаться'}</button></div>`); sheetHook = () => { if (B && !B.done) B.paused = false; }; sh.querySelector('#pzGo').onclick = closeSheet; sh.querySelector('#pzSnd').onclick = () => { sheetHook = null; soundSheet(); sheetHook = () => { if (B && !B.done) B.paused = false; }; }; sh.querySelector('#pzQuit').onclick = () => { closeSheet(); if (B.train) endTraining(); else { B.F[0].wins = 0; B.F[1].wins = 2; endMatch(); } }; };
 $('#batFin').onclick = () => { if (!B || B.phase !== 'finPrompt') return; $('#batFin').classList.add('hidden'); hap('heavy'); startClip(); startSuper(0, true); };
-document.addEventListener('keydown', e => { if (cur !== 'battle' || !B || B.auto) return; if (e.repeat) return; const k = e.key.toLowerCase(); if (k === 'j' || k === 'о') tryAct(0, 'light'); else if (k === 'k' || k === 'л') tryAct(0, 'heavy'); else if (k === ' ') { tryAct(0, 'super'); e.preventDefault(); } else if (k === 'l' || k === 'д') B.hold = true; });
+document.addEventListener('keydown', e => { if (cur !== 'battle' || !B || B.auto) return; if (e.repeat) return; const k = e.key.toLowerCase(); if (k === 'j' || k === 'о') tryAct(0, 'light'); else if (k === 'k' || k === 'л') tryAct(0, 'heavy'); else if (k === ' ') { tryAct(0, 'super'); e.preventDefault(); } else if (k === 'l' || k === 'д') B.hold = true; B.blockTap = B.time; });
 document.addEventListener('keyup', e => { if (!B) return; const k = e.key.toLowerCase(); if (k === 'l' || k === 'д') B.hold = false; });
 
 /* ---- запись клипа добивания ---- */
@@ -2440,7 +2442,7 @@ function bagHit() {
   if (P0.state === 'block') {
     if (B.time - P0.blockStart < PARRY_TR) { hitSfx('parry'); voice(P0.m, 'win', 0.1); B.st.parry++; drill('parry', 1); addText(0, 'ПАРИРОВАНИЕ!', '#64D2FF', 1.3); b.v = 3.4; blockFx(cp, 0, true); hitstop(0.12); shake(6); hap('heavy'); P0.meter = Math.min(100, P0.meter + 20); }
     else { hitSfx('block'); B.st.blocked++; addText(0, 'РАНО! Жми блок прямо перед ударом', '#9fd0ff', 1.1); b.v = 1.4; blockFx(cp, 0, false); hap('light'); }
-  } else { hitSfx('bag'); hitSfx('heavy'); voice(P0.m, 'hurt', 0.06); B.st.missed++; addText(0, 'ПРОПУСТИЛ!', '#FF9F0A', 1.1); setS(P0, 'stun', 0.5); P0.recoil = 1; P0.hurt = 0.8; P0.dizzy = 0.5; b.v = 0.5; hitFx(cp, 0, 'heavy', false, 0); B.texts.pop(); shake(9); hitstop(0.08); hap('heavy'); }
+  } else { hitSfx('bag'); hitSfx('heavy'); voice(P0.m, 'hurt', 0.06); B.st.missed++; addText(0, B.time - (B.blockTap ?? -9) < 1.1 ? 'РАНО! Жми блок ближе к удару' : 'ПРОПУСТИЛ!', '#FF9F0A', 1.1); setS(P0, 'stun', 0.5); P0.recoil = 1; P0.hurt = 0.8; P0.dizzy = 0.5; b.v = 0.5; hitFx(cp, 0, 'heavy', false, 0); B.texts.pop(); shake(9); hitstop(0.08); hap('heavy'); }
 }
 function drawBag(ctx, F, t) {
   const G = B.G, R = G.R, b = F.bag, P = bagPos(), px = P.px, py = P.py;
