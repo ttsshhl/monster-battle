@@ -270,7 +270,7 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
 
 <!-- CHALLENGE INTRO -->
 <section class="screen full" id="s-chal">
-  <div class="chalhead"><div class="logo" style="font-size:30px">Вызов</div><p class="sub" id="chSub" style="margin:4px 0 0"></p></div>
+  <div class="chalhead"><div class="logo" style="font-size:30px" id="chTitle">Бой с другом</div><p class="sub" id="chSub" style="margin:4px 0 0"></p><button class="btn gray sm hidden" id="chInv" style="margin:8px auto 0;width:auto;padding:0 18px">Отправить ссылку ещё раз</button></div>
   <div class="stagebox" style="height:44vh"><canvas id="cChal"></canvas></div>
   <div class="vs" style="margin-top:12px">
     <div style="text-align:center"><div style="font-weight:600" id="chMe"></div><div style="font-size:12px;color:var(--t2)" id="chMeS"></div><button class="link" id="chSwap">Сменить бойца</button></div>
@@ -1679,7 +1679,7 @@ function lbRow(r, by) {
   d.innerHTML = `<b>${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</b>`;
   if (m) d.appendChild(miniCanvas(m, 96)); else d.insertAdjacentHTML('beforeend', '<canvas></canvas>');
   d.insertAdjacentHTML('beforeend', `<div class="nm"><div>${esc(r.name)}${r.me ? ' (ты)' : ''}</div><small>${m ? esc(m.name) + ' • ' + speciesLabel(m) + ' • ур.' + m.lv : ''}</small></div><div class="v">${r.v}${TOP_UNIT[by]}</div>`);
-  d.onclick = () => { if (!m || r.me) return; hap('light'); const sh = sheet(`<h3>${esc(r.name)}</h3><div style="display:flex;justify-content:center" id="lbC"></div><p style="text-align:center;margin:4px 0 12px;opacity:.85;font-size:14px">${esc(m.name)} • ${speciesLabel(m)} • ур. ${m.lv}<br>Место #${r.rank}</p><div class="stack"><button class="btn pink" id="lbF">Вызвать на бой</button><button class="btn ghost" id="lbX">Закрыть</button></div>`); const c = miniCanvas(m, 200); c.style.width = '150px'; sh.querySelector('#lbC').appendChild(c); sh.querySelector('#lbX').onclick = closeSheet; sh.querySelector('#lbF').onclick = () => { closeSheet(); pendingChallenge = m; pendingFrom = { name: r.name }; openChallenge(); }; };
+  d.onclick = () => { if (!m || r.me) return; hap('light'); const sh = sheet(`<h3>${esc(r.name)}</h3><div style="display:flex;justify-content:center" id="lbC"></div><p style="text-align:center;margin:4px 0 12px;opacity:.85;font-size:14px">${esc(m.name)} • ${speciesLabel(m)} • ур. ${m.lv}<br>Место #${r.rank}</p><div class="stack"><button class="btn ghost" id="lbX">Закрыть</button></div>`); const c = miniCanvas(m, 200); c.style.width = '150px'; sh.querySelector('#lbC').appendChild(c); sh.querySelector('#lbX').onclick = closeSheet; };
   return d;
 }
 async function renderTop() {
@@ -2256,6 +2256,12 @@ function bigText(ctx, text, x, y, size, col, sc = 1, rot = 0) {
 }
 
 /* ---- главный цикл боя ---- */
+// короткий тап по «Блок» держит защиту 0.4 с — на телефоне жмут, а не держат
+function blockCtl(i, hold, tapT) {
+  const F = B.F[i], tap = B.time - (tapT ?? -9) < 0.4;
+  if ((hold || tap) && (F.state === 'idle' || F.state === 'recover')) { setS(F, 'block', 0); F.blockStart = Math.max(tapT ?? B.time, B.time - 0.05); }
+  if (!hold && !tap && F.state === 'block') setS(F, 'idle', 0);
+}
 function stepBattle(dt, rdt) {
   B.time += dt;
   B.timers = B.timers.filter(tm => { if (B.time >= tm.at) { tm.fn(); return false; } return true; });
@@ -2265,16 +2271,14 @@ function stepBattle(dt, rdt) {
     B.timer -= dt;
     const P0 = B.F[0];
     if (B.auto) aiThink(0, dt);
-    else { const tap = B.time - (B.blockTap ?? -9) < 0.4; // короткий тап по «Блок» держит защиту 0.4 с — на телефоне жмут, а не держат
-      if ((B.hold || tap) && (P0.state === 'idle' || P0.state === 'recover')) { setS(P0, 'block', 0); P0.blockStart = Math.max(B.blockTap ?? B.time, B.time - 0.05); }
-      if (!B.hold && !tap && P0.state === 'block') setS(P0, 'idle', 0); }
+    else blockCtl(0, B.hold, B.blockTap);
     if (B.train) { bagUpdate(dt); if (B.timer <= 0) { B.phase = 'end'; ann('ВРЕМЯ!', '', 1.2, '#fff'); setTimeout(endTraining, 900); } }
-    else { aiThink(1, dt);
+    else { if (B.net) blockCtl(1, B.hold1, B.blockTap1); else aiThink(1, dt);
     if (B.timer <= 0) { const r0 = B.F[0].hp / B.F[0].maxHp, r1 = B.F[1].hp / B.F[1].maxHp; koRound(r0 >= r1 ? 0 : 1, true); } }
   }
   else if (ph === 'super' || ph === 'finisher') superStep(dt);
   else if (ph === 'ko') { B.pt += rdt; if (B.pt > 1.0) B.timeScale = lerp(B.timeScale, 1, 0.1); if (B.pt > 2.4) { const W = B.F[B.koW]; if (W.wins >= NEED()) { if (B.timeUp) endMatch(); else { B.phase = 'finPrompt'; B.pt = 0; const L = B.F[1 - B.koW]; L.koT = 0; setS(L, 'stunned', 0); L.dizzy = 99; setS(W, 'idle', 0); W.oy = 0; ann('ДОБЕЙ ЕГО!', '', 1.6, '#ff2a2a', 1.2); if (B.koW === 0) $('#batFin').classList.remove('hidden'); } } else nextRound(); } }
-  else if (ph === 'finPrompt') { B.pt += rdt; if (B.koW === 1 && B.pt > 1.3) { if (Math.random() < 0.65) startSuper(1, true); else endMatch(); } else if (B.pt > 4) { $('#batFin').classList.add('hidden'); B.F[1 - B.koW].dizzy = 0; endMatch(); } }
+  else if (ph === 'finPrompt') { B.pt += rdt; if (B.koW === 1 && !B.net && B.pt > 1.3) { if (Math.random() < 0.65) startSuper(1, true); else endMatch(); } else if (B.pt > 4) { $('#batFin').classList.add('hidden'); B.F[1 - B.koW].dizzy = 0; endMatch(); } }
   else if (ph === 'finEgg') { B.pt += rdt; const W = B.F[B.koW]; setS(W, 'win', 0); if (B.pt > 2.8) endMatch(); }
   if (ph !== 'finPrompt' && ph !== 'finEgg' && ph !== 'super' && ph !== 'finisher') {}
   [0, 1].forEach(i => upF(i, dt));
@@ -2295,8 +2299,9 @@ loops.battle = t => {
   AU.intensity = clamp((1 - Math.min(B.F[0].hp / B.F[0].maxHp, B.train ? 1 : B.F[1].hp / B.F[1].maxHp)) * 0.8 + (!B.train && Math.max(B.F[0].wins, B.F[1].wins) >= NEED() - 1 ? 0.35 : 0), 0, 1);
   if (!B.bg || B.bg._w !== w || B.bg._h !== h) { B.bg = buildArena(w, h, B.G.gy); B.bg._w = w; B.bg._h = h; }
   let dt = rdt * B.timeScale; if (B.hitstop > 0) { B.hitstop -= rdt; dt = 0; }
-  if (!B.paused && !B.done) for (let s = 0; s < 2; s++) stepBattle(dt / 2, rdt / 2);
-  if (dt === 0 && !B.paused) stepParts(rdt * 0.35); // во время стоп-кадра искры летят медленно, а не замирают
+  if (B.net && B.net.role === 'guest') netGuestStep(rdt);
+  else { if (!B.paused && !B.done) for (let s = 0; s < 2; s++) stepBattle(dt / 2, rdt / 2);
+  if (dt === 0 && !B.paused) stepParts(rdt * 0.35); if (B.net) netHostSend(false); } // во время стоп-кадра искры летят медленно, а не замирают
   const G = B.G;
   ctx.save();
   const sx = (Math.random() - 0.5) * B.shake * 2, sy = (Math.random() - 0.5) * B.shake * 2;
@@ -2344,14 +2349,15 @@ loops.battle = t => {
 
 /* ---- управление ---- */
 function bindPress(el, down, up) { el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('down'); down(); }); const u = e => { el.classList.remove('down'); up && up(); }; ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => el.addEventListener(ev, u)); el.addEventListener('contextmenu', e => e.preventDefault()); }
-bindPress($('#pLight'), () => { if (B && !B.auto) { tryAct(0, 'light'); hap('light'); } });
-bindPress($('#pHeavy'), () => { if (B && !B.auto) { tryAct(0, 'heavy'); hap('medium'); } });
-bindPress($('#pSuper'), () => { if (B && !B.auto) tryAct(0, 'super'); });
-bindPress($('#pBlock'), () => { if (B) { B.hold = true; B.blockTap = B.time; } }, () => { if (B) B.hold = false; });
-$('#pExit').onclick = () => { if (!B || B.done) return; B.paused = true; const sh = sheet(`<h3>Пауза</h3><div class="stack"><button class="btn" id="pzGo">Продолжить</button><button class="btn gray" id="pzSnd">Звук</button><button class="btn gray" id="pzQuit">${B.train ? 'Завершить тренировку' : 'Сдаться'}</button></div>`); sheetHook = () => { if (B && !B.done) B.paused = false; }; sh.querySelector('#pzGo').onclick = closeSheet; sh.querySelector('#pzSnd').onclick = () => { sheetHook = null; soundSheet(); sheetHook = () => { if (B && !B.done) B.paused = false; }; }; sh.querySelector('#pzQuit').onclick = () => { closeSheet(); if (B.train) endTraining(); else { B.F[0].wins = 0; B.F[1].wins = 2; endMatch(); } }; };
-$('#batFin').onclick = () => { if (!B || B.phase !== 'finPrompt') return; $('#batFin').classList.add('hidden'); hap('heavy'); startClip(); startSuper(0, true); };
-document.addEventListener('keydown', e => { if (cur !== 'battle' || !B || B.auto) return; if (e.repeat) return; const k = e.key.toLowerCase(); if (k === 'j' || k === 'о') tryAct(0, 'light'); else if (k === 'k' || k === 'л') tryAct(0, 'heavy'); else if (k === ' ') { tryAct(0, 'super'); e.preventDefault(); } else if (k === 'l' || k === 'д') B.hold = true; B.blockTap = B.time; });
-document.addEventListener('keyup', e => { if (!B) return; const k = e.key.toLowerCase(); if (k === 'l' || k === 'д') B.hold = false; });
+bindPress($('#pLight'), () => { if (B && !B.auto) { hap('light'); if (netG()) return netSend('l'); tryAct(0, 'light'); } });
+bindPress($('#pHeavy'), () => { if (B && !B.auto) { hap('medium'); if (netG()) return netSend('h'); tryAct(0, 'heavy'); } });
+bindPress($('#pSuper'), () => { if (B && !B.auto) { if (netG()) return netSend('s'); tryAct(0, 'super'); } });
+bindPress($('#pBlock'), () => { if (B) { if (netG()) return netSend('bd'); B.hold = true; B.blockTap = B.time; } }, () => { if (B) { if (netG()) return netSend('bu'); B.hold = false; } });
+$('#pExit').onclick = () => { if (!B || B.done) return; if (B.net) return netSurrenderSheet(); B.paused = true; const sh = sheet(`<h3>Пауза</h3><div class="stack"><button class="btn" id="pzGo">Продолжить</button><button class="btn gray" id="pzSnd">Звук</button><button class="btn gray" id="pzQuit">${B.train ? 'Завершить тренировку' : 'Сдаться'}</button></div>`); sheetHook = () => { if (B && !B.done) B.paused = false; }; sh.querySelector('#pzGo').onclick = closeSheet; sh.querySelector('#pzSnd').onclick = () => { sheetHook = null; soundSheet(); sheetHook = () => { if (B && !B.done) B.paused = false; }; }; sh.querySelector('#pzQuit').onclick = () => { closeSheet(); if (B.train) endTraining(); else { B.F[0].wins = 0; B.F[1].wins = 2; endMatch(); } }; };
+$('#batFin').onclick = () => { if (!B || B.phase !== 'finPrompt') return; $('#batFin').classList.add('hidden'); hap('heavy'); startClip(); if (netG()) return netSend('f'); startSuper(0, true); };
+document.addEventListener('keydown', e => { if (cur !== 'battle' || !B || B.auto) return; if (e.repeat) return; const k = e.key.toLowerCase(); const g = netG();
+  if (k === 'j' || k === 'о') g ? netSend('l') : tryAct(0, 'light'); else if (k === 'k' || k === 'л') g ? netSend('h') : tryAct(0, 'heavy'); else if (k === ' ') { g ? netSend('s') : tryAct(0, 'super'); e.preventDefault(); } else if (k === 'l' || k === 'д') { if (g) netSend('bd'); else { B.hold = true; B.blockTap = B.time; } } });
+document.addEventListener('keyup', e => { if (!B) return; const k = e.key.toLowerCase(); if (k === 'l' || k === 'д') { if (netG()) netSend('bu'); else B.hold = false; } });
 
 /* ---- запись клипа добивания ---- */
 function startClip() {
@@ -2371,7 +2377,8 @@ function endMatch() {
   const mt0 = markTier(me); const r = gainXp(me, xp); S.coins += coins; S.fights++; if (won) { S.wins++; me.w++; } else me.l++; const newMark = markTier(me) > mt0 ? MARKS[markTier(me)] : null;
   let gift = null;
   if (r.s1 > r.s0) { const notOwned = ACCS.slice(1).filter(a => !S.own.acc.includes(a.id)); if (notOwned.length) { gift = pick(notOwned.filter(a => a.p <= 20).concat(notOwned).slice(0, 4)); S.own.acc.push(gift.id); } }
-  if (B.opts.from && lbOn()) api('/duel', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Init-Data': tg.initData }, body: JSON.stringify({ cid: B.opts.from.cid, fid: B.opts.from.fid, won, score: B.F[0].wins + ':' + B.F[1].wins, mon: encodeMon(me) }) }).catch(() => {});
+  if (B.net) netEnd(won);
+  else if (B.opts.from && lbOn()) api('/duel', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Init-Data': tg.initData }, body: JSON.stringify({ cid: B.opts.from.cid, fid: B.opts.from.fid, won, score: B.F[0].wins + ':' + B.F[1].wins, mon: encodeMon(me) }) }).catch(() => {});
   let recruit = null;
   if (won && B.opts.kind === 'pve' && Math.random() < 0.18 && S.mons.length < S.slots) recruit = Object.assign({}, op, { id: Date.now().toString(36) + 'r', lv: 1, xp: 0, w: 0, l: 0, acc: 0, eff: 0 });
   save();
@@ -2383,10 +2390,8 @@ function endMatch() {
     if (B.rec) { const b = add('Сохранить МОНСТРАЛИТИ', 'mint', () => { if (B.clip) shareMedia(B.clip.blob, B.clip.ext, 'video', me); }); b.id = 'rClip'; if (!B.clip) b.disabled = true; }
     if (r.s1 > r.s0) add('Смотреть превращение', 'mint', () => { const list = []; for (let i = r.s0; i <= r.s1; i++) list.push(i); openEvo(me, list, 'evo'); });
     if (recruit) add('Забрать ' + op.name, 'pink', b => { S.mons.push(recruit); save(); toast(op.name + ' в загоне!'); b.disabled = true; b.textContent = '🐾 ' + op.name + ' в загоне'; });
-    const op0 = B.opOrig || op, from = B.opts.from;
-    add('Реванш', 'pink', () => { pendingChallenge = op0; pendingFrom = from; openChallenge(); });
-    add('Позвать другого друга', 'gray', () => shareChallenge(me));
-    add('Домой', 'ghost', () => { B = null; show('home'); });
+    if (B.net && NET.rid) { add('Реванш', 'pink', () => { B = null; show('chal'); renderLobby(); }); add('Домой', 'ghost', () => { B = null; roomClose(); show('home'); }); }
+    else { add('Позвать друга на бой', 'pink', () => { B = null; inviteFight(); }); add('Домой', 'ghost', () => { B = null; show('home'); }); }
     $('#bRes').classList.add('on');
   }, 400);
 }
@@ -2729,7 +2734,7 @@ async function shareChallenge(m) {
     if (!askedWrite && tg.requestWriteAccess) { askedWrite = true; try { tg.requestWriteAccess(() => {}); } catch (e) {} } // чтобы бот мог сообщить, когда друг примет вызов
     try { const r = await api('/chal', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Init-Data': tg.initData }, body: JSON.stringify({ mon: encodeMon(m) }) }); if (r.id) link = `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=d${r.id}`; } catch (e) {}
   }
-  const text = `⚔️ Мой монстр ${m.name} (${speciesLabel(m)}, ур. ${m.lv}) вызывает тебя на бой! Спорим, не победишь?`;
+  const text = `⚔️ Мой монстр ${m.name} (${speciesLabel(m)}, ур. ${m.lv}) вызывает тебя на бой! Спорим, не победишь?`; // старый асинхронный вызов (не используется в живых боях)
   if (inTG) { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`); return; }
   const local = location.href.split('?')[0] + '?startapp=c' + encodeMon(m);
   const sh = sheet(`<h3>Вызов другу</h3><p style="opacity:.8;font-size:14px;text-align:center;margin:0 0 8px">${esc(text)}</p><input readonly value="${esc(link)}"><div class="stack"><button class="btn pink" id="shC">Скопировать ссылку</button><button class="btn ghost" id="shL">Тест в этом браузере</button></div>`);
@@ -2739,8 +2744,7 @@ async function shareChallenge(m) {
 let pendingChallenge = null, pendingFrom = null, pendingParam = null;
 function readStartParam() {
   let p = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || new URLSearchParams(location.search).get('startapp') || new URLSearchParams(location.search).get('tgWebAppStartParam');
-  if (p && p[0] === 'c') pendingChallenge = decodeMon(p.slice(1));
-  else if (p && (p[0] === 'd' || p[0] === 'f')) pendingParam = p;
+  if (p && 'cdfr'.includes(p[0])) pendingParam = p;
 }
 function openChallenge() {
   const op = pendingChallenge; if (!op) return; const me = act();
@@ -2750,39 +2754,214 @@ function openChallenge() {
   show('chal');
 }
 loops.chal = t => {
-  const op = pendingChallenge; if (!op) return; const me = act();
+  const op = pendingChallenge, me = act();
   const cv = $('#cChal'); const { ctx, w, h } = fit(cv); ctx.clearRect(0, 0, w, h);
   const R = Math.min(w * 0.18, h * 0.22);
   drawChudik(ctx, me, w * 0.28, h * 0.55, R * (0.75 + STAGES[stageOf(me.lv)].s * 0.35), { t, dir: 1 });
-  drawChudik(ctx, op, w * 0.72, h * 0.55, R * (0.75 + STAGES[stageOf(op.lv)].s * 0.35), { t: t + 1, dir: -1, mood: 'angry' });
+  if (op) drawChudik(ctx, op, w * 0.72, h * 0.55, R * (0.75 + STAGES[stageOf(op.lv)].s * 0.35), { t: t + 1, dir: -1, mood: 'angry' });
+  else { drawEgg(ctx, w * 0.72, h * 0.6, R * 0.55, 260, 0, Math.sin(t * 3) * 0.08, 3); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = `800 ${Math.round(R * 0.6)}px -apple-system,system-ui`; ctx.textAlign = 'center'; ctx.fillText('?', w * 0.72, h * 0.6 + R * 0.2); }
+  const M = NET.rid && lbMe(), O = NET.rid && lbOp(); ctx.font = '700 13px -apple-system,system-ui'; ctx.textAlign = 'center';
+  [[w * 0.28, M], [w * 0.72, O]].forEach(([x, P]) => { if (!P) return; const ok = P.ready; ctx.fillStyle = ok ? 'rgba(48,209,88,.9)' : 'rgba(255,255,255,.14)'; ctx.beginPath(); rr(ctx, x - 44, h * 0.9, 88, 24, 12); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText(ok ? '✓ готов' : P.online ? 'не готов' : 'не в сети', x, h * 0.9 + 16.5); });
 };
-$('#chSwap').onclick = () => { if (S.mons.length < 2) return toast('Другие монстры появятся после скрещивания'); S.active = (S.active + 1) % S.mons.length; save(); hap(); openChallenge(); };
-$('#chYes').onclick = () => { const op = pendingChallenge, from = pendingFrom; pendingChallenge = null; pendingFrom = null; const me = act(); const fair = Object.assign({}, op, { lv: Math.min(op.lv, me.lv + 2) }); if (fair.lv < op.lv) toast(`Уровни выровнены: ${op.name} дерётся как ур. ${fair.lv}`, 2600); startBattle(me, fair, { kind: 'chal', from }); B.opOrig = op; };
-$('#chNo').onclick = () => { pendingChallenge = null; pendingFrom = null; show('home'); };
+$('#chSwap').onclick = () => { if (S.mons.length < 2) return toast('Другие монстры появятся из инкубатора'); if (NET.ready) return toast('Сначала отмени готовность'); S.active = (S.active + 1) % S.mons.length; save(); hap(); if (NET.rid) npost(`/room/${NET.rid}/join`, { mon: encodeMon(act()) }).catch(() => {}); renderLobby(); };
+$('#chYes').onclick = () => { if (!NET.rid) return show('home'); NET.ready = !NET.ready; hap(NET.ready ? 'medium' : 'light'); npost(`/room/${NET.rid}/ready`, { r: NET.ready }).catch(() => { NET.ready = false; toast('Нет связи'); renderLobby(); }); renderLobby(); };
+$('#chNo').onclick = () => { pendingChallenge = null; pendingFrom = null; roomClose(); show('home'); };
+$('#chInv').onclick = () => NET.rid && shareRoom(NET.rid);
+
+/* ================== ЖИВОЙ БОЙ С ДРУГОМ ==================
+   Комната на сервере: оба заходят, бой стартует, когда ОБА нажали «Начать».
+   Создатель комнаты (хост) считает бой, гость присылает свои нажатия; хост раз в 50 мс шлёт гостю
+   состояние бойцов и события (удары, звуки, надписи). Никакого автобоя: монстр двигается только от кнопок игрока. */
+const NET = { rid: null, role: null, es: null, lb: null, ready: false, inviteName: null };
+const netG = () => !!(B && B.net && B.net.role === 'guest');
+const nh = () => ({ 'Content-Type': 'application/json', 'X-Init-Data': tg.initData });
+const npost = (p, b) => api(p, { method: 'POST', headers: nh(), body: typeof b === 'string' ? b : JSON.stringify(b || {}) });
+const lbMe = () => NET.lb && NET.lb[NET.role];
+const lbOp = () => NET.lb && NET.lb[NET.role === 'host' ? 'guest' : 'host'];
+async function inviteFight(fid, fname) {
+  if (!lbOn()) return toast('Бои с друзьями работают внутри Telegram', 2400);
+  if (!askedWrite && tg.requestWriteAccess) { askedWrite = true; try { tg.requestWriteAccess(() => {}); } catch (e) {} }
+  try {
+    const r = await npost('/room', { mon: encodeMon(act()), fid: fid || undefined });
+    NET.inviteName = fname || null; roomOpen(r.rid, 'host');
+    if (fid) toast(`Бот позвал ${fname || 'друга'} — ждём его в бою`, 2600); else shareRoom(r.rid);
+  } catch (e) { toast('Не удалось создать бой. Проверь интернет'); }
+}
+function shareRoom(rid) {
+  const m = act(), link = `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=r${rid}`;
+  const text = `⚔️ Зову тебя на живой бой монстров! Мой ${m.name} (${speciesLabel(m)}, ур. ${m.lv}) уже ждёт. Бой начнётся, когда мы оба нажмём «Начать».`;
+  if (inTG) tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
+  else { (navigator.clipboard ? navigator.clipboard.writeText(text + '\n' + link) : Promise.reject()).then(() => toast('Ссылка скопирована')).catch(() => toast(link, 4000)); }
+}
+async function joinRoom(rid) {
+  if (!lbOn()) return toast('Бои с друзьями работают внутри Telegram', 2400);
+  try { const r = await npost(`/room/${rid}/join`, { mon: encodeMon(act()) }); roomOpen(rid, r.role); }
+  catch (e) { toast(/409/.test(e.message) ? 'В этом бою уже есть соперник' : /404/.test(e.message) ? 'Этот бой уже закрыт — позови друга заново' : 'Не удалось войти в бой', 2800); }
+}
+function roomOpen(rid, role) {
+  if (NET.rid && NET.rid !== rid) roomClose();
+  NET.rid = rid; NET.role = role; NET.ready = false; NET.lb = null;
+  if (!NET.es) {
+    const es = NET.es = new EventSource(CONFIG.BACKEND_URL.replace(/\/$/, '') + `/room/${rid}/ev?tgd=` + encodeURIComponent(tg.initData));
+    es.addEventListener('lobby', e => { NET.lb = JSON.parse(e.data); const M = lbMe(); if (M) NET.ready = M.ready; renderLobby(); });
+    es.addEventListener('start', e => netStart(JSON.parse(e.data)));
+    es.addEventListener('in', e => { try { netIn(JSON.parse(e.data)); } catch (x) {} });
+    es.addEventListener('st', e => { try { netSt(JSON.parse(e.data)); } catch (x) {} });
+    es.addEventListener('left', () => netLeft());
+    es.addEventListener('bye', () => { if (!B || B.done) toast('Соперник вышел из лобби', 2000); });
+  }
+  show('chal'); renderLobby();
+}
+function roomClose() {
+  if (!NET.rid) return; npost(`/room/${NET.rid}/leave`).catch(() => {});
+  try { NET.es.close(); } catch (e) {} NET.rid = null; NET.es = null; NET.lb = null; NET.ready = false; pendingChallenge = null;
+}
+function renderLobby() {
+  if (!NET.rid) return; const me = act(), M = lbMe(), O = lbOp(), om = O && decodeMon(O.mon), who = (O && O.name) || NET.inviteName || 'друга';
+  pendingChallenge = om || null;
+  $('#chTitle').textContent = 'Живой бой'; $('#chSwap').classList.toggle('hidden', NET.ready);
+  $('#chMe').textContent = me.name; $('#chMeS').textContent = `${speciesLabel(me)} • ур.${me.lv}`;
+  $('#chOp').textContent = O ? O.name : 'Соперник'; $('#chOpS').textContent = om ? `${om.name} • ${speciesLabel(om)} • ур.${om.lv}` : 'ещё не зашёл';
+  let st;
+  if (!O) st = `Ждём ${who}… Как только он откроет ссылку, вы окажетесь здесь вместе.`;
+  else if (!O.online) st = `${O.name} вышел из лобби. Ждём, пока вернётся…`;
+  else if (NET.ready && !O.ready) st = `Ты готов. Ждём, когда ${O.name} нажмёт «Начать бой»…`;
+  else if (O.ready && !NET.ready) st = `${O.name} готов! Жми «Начать бой» — и в бой.`;
+  else if (NET.ready && O.ready) st = 'Оба готовы — начинаем!';
+  else st = 'Бой до 3 побед. Начнётся, когда вы оба нажмёте «Начать бой».';
+  $('#chSub').textContent = st; $('#chInv').classList.toggle('hidden', !!O);
+  $('#chYes').innerHTML = NET.ready ? 'Отменить' : `${svgI('swords')}Начать бой`; $('#chYes').classList.toggle('gray', NET.ready);
+  $('#chNo').textContent = 'Выйти';
+}
+// ---- старт боя у обоих ----
+function netStart(d) {
+  if (B && !B.done) return; const O = lbOp(); if (!O) return; const om = decodeMon(O.mon); if (!om) return;
+  const me = act(); S.tutFight = 1;
+  const fm = Object.assign({}, me, { lv: Math.min(me.lv, om.lv + 2) }), fo = Object.assign({}, om, { lv: Math.min(om.lv, me.lv + 2) });
+  startBattle(me, om, { kind: 'chal', live: true });
+  B.F = [mkF(fm, 0), mkF(fo, 1)]; B.paused = false; $('#batTut').classList.add('hidden');
+  B.ar = ARENAS[(d.seed || 0) % ARENAS.length]; B.bg = null; // одна арена у обоих
+  B.net = { role: NET.role, rid: NET.rid, ev: [], seq: 0, last: 0, rseq: -1, recv: performance.now(), tg: [{}, {}] };
+  if (fo.lv < om.lv || fm.lv < me.lv) toast('Уровни выровнены, чтобы бой был честным', 2200);
+}
+// ---- гость: нажатия уходят хосту ----
+function netSend(a) { if (!B || !B.net) return; npost(`/room/${B.net.rid}/in`, { a }).catch(() => {}); }
+function netIn(d) {
+  if (!B || !B.net || B.net.role !== 'host' || B.done) return;
+  switch (d.a) {
+    case 'l': tryAct(1, 'light'); break; case 'h': tryAct(1, 'heavy'); break; case 's': tryAct(1, 'super'); break;
+    case 'bd': B.hold1 = true; B.blockTap1 = B.time; break; case 'bu': B.hold1 = false; break;
+    case 'f': if (B.phase === 'finPrompt' && B.koW === 1) startSuper(1, true); break;
+    case 'q': if (B.phase !== 'end') { B.F[0].wins = NEED(); endMatch(); } break;
+  }
+}
+// ---- хост: снимок состояния + события ----
+const FK = ['hp', 'maxHp', 'lag', 'state', 'lunge', 'recoil', 'hurt', 'glow', 'mouth', 'rage', 'puff', 'split', 'dizzy', 'koT', 'dodge', 'twin', 'ox', 'oy', 'sx', 'sy', 'alpha', 'rot', 'flip', 'atkVis', 'rageTint', 'smirk', 'meter', 'wins', 'combo'];
+const r3 = v => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v;
+const nX = x => r3((x - B.G.w / 2) / B.G.R), nY = y => r3((y - B.G.gy) / B.G.R), nV = v => r3(v / B.G.R);
+function netEv(e) { if (B && B.net && B.net.role === 'host' && !B.net.mute && B.G) B.net.ev.push(e); }
+function netHostSend(force) {
+  const N = B.net, now = performance.now(); if (!force && (B.done || now - N.last < 50)) return; N.last = now;
+  const R = B.G.R, F = B.F.map(f => FK.map(k => k === 'ox' || k === 'oy' ? r3(f[k] / R) : r3(f[k])));
+  const S0 = B.sup;
+  const snap = { q: ++N.seq, ph: B.phase, r: B.round, tm: r3(B.timer), fl: r3(B.flash), z: B.cam.tz, kw: B.koW, pt: r3(B.pt), tu: B.timeUp ? 1 : 0, fw: B.flawless ? 1 : 0, F,
+    sp: S0 ? [S0.i, r3(S0.t), S0.fin ? 1 : 0, S0.marks, S0.spikes.map(x => x && { t0: x.t0, x: nX(x.x) })] : 0,
+    bn: B.banner ? [B.banner.text, B.banner.side, B.banner.col, r3(B.real - B.banner.t0)] : 0,
+    cb: B.combo.map(c => c ? c.n : 0), e: N.ev, d: B.done ? 1 : 0, sh: B.shield.map(r3) };
+  N.ev = [];
+  npost(`/room/${N.rid}/st`, snap).catch(() => {});
+}
+function netEnd(won) {
+  if (B.net.role === 'host') { netHostSend(true); npost(`/room/${B.net.rid}/end`, { won, score: B.F[0].wins + ':' + B.F[1].wins }).catch(() => {}); }
+  NET.ready = false;
+}
+// перехват эффектов на хосте — гость проигрывает их у себя (в своих координатах, зеркально)
+(() => {
+  const _hitFx = hitFx, _blockFx = blockFx;
+  hitFx = function (cp, di, kind, crit, dmg) { netEv(['h', nX(cp.x), nY(cp.y), di, kind, crit ? 1 : 0, dmg]); if (B && B.net) B.net.mute = 1; try { return _hitFx(cp, di, kind, crit, dmg); } finally { if (B && B.net) B.net.mute = 0; } };
+  blockFx = function (cp, di, parry) { netEv(['b', nX(cp.x), nY(cp.y), di, parry ? 1 : 0]); if (B && B.net) B.net.mute = 1; try { return _blockFx(cp, di, parry); } finally { if (B && B.net) B.net.mute = 0; } };
+  const _addText = addText; addText = function (side, text, col, size) { netEv(['t', side, text, col, size]); return _addText(side, text, col, size); };
+  const _ann = ann; ann = function (text, sub, dur, col, size) { netEv(['a', text, sub, dur, col, size]); return _ann(text, sub, dur, col, size); };
+  const _hitSfx = hitSfx; hitSfx = function (name, d) { netEv(['s', name, d || 0]); return _hitSfx(name, d); };
+  const _voice = voice; voice = function (m, kind, delay) { if (B && B.net) { const i = B.F.findIndex(F => F.m.id === m.id && F.m.seed === m.seed); if (i >= 0) netEv(['v', i, kind, delay || 0]); } return _voice(m, kind, delay); };
+  const _sfx = sfx; sfx = function (name, d) { netEv(['x', name, d || 0]); return _sfx(name, d); };
+  const _shake = shake; shake = function (px) { netEv(['k', px]); return _shake(px); };
+  const _addP = addP; addP = function (p) { if (B && B.net && B.net.role === 'host' && !B.net.mute && B.G) { const q = Object.assign({}, p); ['x', 'tx'].forEach(k => q[k] != null && (q[k] = nX(q[k]))); ['y', 'ty'].forEach(k => q[k] != null && (q[k] = nY(q[k]))); ['vx', 'vy', 'g'].forEach(k => q[k] != null && (q[k] = nV(q[k]))); ['r0', 'r1'].forEach(k => q[k] != null && (q[k] = nV(q[k]))); B.net.ev.push(['p', q]); } return _addP(p); };
+})();
+// ---- гость: применяем снимки ----
+const CONT = new Set(['lag', 'lunge', 'recoil', 'hurt', 'glow', 'mouth', 'rage', 'puff', 'dizzy', 'koT', 'dodge', 'twin', 'ox', 'oy', 'sx', 'sy', 'alpha', 'rot', 'meter']);
+function netSt(sn) {
+  if (!B || !B.net || B.net.role !== 'guest' || sn.q <= B.net.rseq) return; B.net.rseq = sn.q; B.net.recv = performance.now();
+  const G = B.G; if (!G) return; const R = G.R, dX = n => G.w / 2 - n * R, dY = n => G.gy + n * R;
+  sn.F.forEach((arr, hi) => { const gi = 1 - hi, F = B.F[gi], T = B.net.tg[gi];
+    FK.forEach((k, j) => { let v = arr[j]; if (k === 'ox') v = -v * R; else if (k === 'oy') v = v * R;
+      if (CONT.has(k) && typeof v === 'number') { T[k] = v; if (F[k] == null || Math.abs(F[k] - v) > R * 3) F[k] = v; } else F[k] = v; }); });
+  const ph0 = B.phase; B.phase = sn.ph; B.round = sn.r; B.timer = sn.tm; B.flash = Math.max(B.flash, sn.fl); B.cam.tz = sn.z; B.koW = sn.kw == null ? null : 1 - sn.kw; B.pt = sn.pt; B.timeUp = !!sn.tu; B.flawless = !!sn.fw;
+  sn.sh.forEach((v, hi) => { B.shield[1 - hi] = Math.max(B.shield[1 - hi], v); });
+  if (sn.sp) { const [hi, t, fin, marks, spikes] = sn.sp, gi = 1 - hi; if (!B.sup) { auDuck(SUPERS[B.F[gi].m.sp].dur + 0.6); } B.sup = Object.assign(B.sup || { done: {}, said: {} }, { i: gi, def: SUPERS[B.F[gi].m.sp], t, fin: !!fin, marks: marks || [], spikes: (spikes || []).map(x => x && { t0: x.t0, x: dX(x.x) }) }); }
+  else B.sup = null;
+  if (sn.bn) { if (!B.banner || B.banner.text !== sn.bn[0]) B.banner = { text: sn.bn[0], side: 1 - sn.bn[1], col: sn.bn[2], t0: B.real - sn.bn[3] }; }
+  sn.cb.forEach((n, hi) => { const gi = 1 - hi; if (n >= 2 && (!B.combo[gi] || B.combo[gi].n !== n)) B.combo[gi] = { n, t: B.real }; });
+  $('#batFin').classList.toggle('hidden', !(B.phase === 'finPrompt' && B.koW === 0));
+  sn.e.forEach(e => { try { netPlay(e, dX, dY, R); } catch (x) {} });
+  if (sn.d && !B.done) { B.F[0].wins = sn.F[1][FK.indexOf('wins')]; B.F[1].wins = sn.F[0][FK.indexOf('wins')]; endMatch(); }
+}
+function netPlay(e, dX, dY, R) {
+  const t = e[0];
+  if (t === 'h') hitFx({ x: dX(e[1]), y: dY(e[2]) }, 1 - e[3], e[4], !!e[5], e[6]);
+  else if (t === 'b') blockFx({ x: dX(e[1]), y: dY(e[2]) }, 1 - e[3], !!e[4]);
+  else if (t === 't') addText(1 - e[1], e[2], e[3], e[4]);
+  else if (t === 'a') ann(e[1], e[2], e[3], e[4], e[5]);
+  else if (t === 's') hitSfx(e[1], e[2]);
+  else if (t === 'v') voice(B.F[1 - e[1]].m, e[2], e[3]);
+  else if (t === 'x') sfx(e[1], e[2]);
+  else if (t === 'k') shake(e[1]);
+  else if (t === 'p') { const q = e[1]; ['x', 'tx'].forEach(k => q[k] != null && (q[k] = dX(q[k]))); ['y', 'ty'].forEach(k => q[k] != null && (q[k] = dY(q[k]))); if (q.vx != null) q.vx = -q.vx * R; if (q.vy != null) q.vy *= R; if (q.g != null) q.g *= R; ['r0', 'r1'].forEach(k => q[k] != null && (q[k] *= R)); addP(q); }
+}
+function netGuestStep(rdt) {
+  const k = Math.min(1, rdt * 22);
+  B.net.tg.forEach((T, i) => { const F = B.F[i]; for (const key in T) F[key] = lerp(F[key] ?? T[key], T[key], key === 'meter' || key === 'lag' ? Math.min(1, rdt * 10) : k); });
+  if (B.sup) B.sup.t += rdt;
+  B.shield = B.shield.map(s => Math.max(0, s - rdt * 3)); B.shake = Math.max(0, B.shake - rdt * 40); B.flash = Math.max(0, B.flash - rdt * 2.5);
+  B.cam.z = lerp(B.cam.z, B.cam.tz, Math.min(1, rdt * 4)); stepParts(rdt);
+  if (!B.done && performance.now() - B.net.recv > 6000) netLeft();
+}
+function netLeft() {
+  if (!B || !B.net || B.done) return; B.done = true; $('#batFin').classList.add('hidden');
+  const sh = sheet(`<h3>Соперник отключился</h3><p class="sub" style="text-align:center">Связь пропала, бой не засчитан. Можно подождать его в лобби или выйти.</p><div class="stack"><button class="btn" id="nlL">В лобби</button><button class="btn ghost" id="nlH">Домой</button></div>`);
+  sh.querySelector('#nlL').onclick = () => { closeSheet(); B = null; if (NET.rid) { show('chal'); renderLobby(); } else show('home'); };
+  sh.querySelector('#nlH').onclick = () => { closeSheet(); B = null; roomClose(); show('home'); };
+}
+function netSurrenderSheet() {
+  const sh = sheet(`<h3>Сдаться?</h3><p class="sub" style="text-align:center">Это живой бой — паузы нет. Если сдашься, победа уйдёт сопернику.</p><div class="stack"><button class="btn gray" id="nsY">Сдаться</button><button class="btn" id="nsN">Драться дальше</button></div>`);
+  sh.querySelector('#nsN').onclick = closeSheet;
+  sh.querySelector('#nsY').onclick = () => { closeSheet(); if (!B || B.done) return; if (B.net.role === 'guest') netSend('q'); else { B.F[1].wins = NEED(); endMatch(); } };
+}
 
 /* ---- бои только с друзьями ---- */
 async function resolveParam(p) {
   if (!lbOn()) return;
   try {
-    if (p[0] === 'd') { const r = await api('/chal/' + p.slice(1)); if (r.mine) return toast('Это твой вызов — отправь его другу 😉', 2600); const m = decodeMon(r.mon); if (!m) return; m.name = m.name || r.name; pendingChallenge = m; pendingFrom = { cid: p.slice(1), fid: r.fid, name: r.name }; openChallenge(); }
-    else { const r = await api('/friends'); const f = r.friends.find(x => x.fid === p.slice(1)); if (f) fightFriend(f); }
+    if (p[0] === 'r') return joinRoom(p.slice(1));
+    if (p[0] === 'c') return toast('Эта ссылка от старой версии — попроси друга позвать тебя заново', 3000);
+    if (p[0] === 'd') { const r = await api('/chal/' + p.slice(1)); if (r.mine) return toast('Это твоя ссылка — отправь её другу 😉', 2600); return inviteFight(r.fid, r.name); }
+    if (p[0] === 'f') { const r = await api('/friends'); const f = r.friends.find(x => x.fid === p.slice(1)); return inviteFight(p.slice(1), f ? f.name : null); }
   } catch (e) { toast('Не удалось загрузить вызов'); }
 }
 function fightFriend(f) { const m = decodeMon(f.mon); if (!m) return toast('Монстр друга не загрузился'); pendingChallenge = m; pendingFrom = { fid: f.fid, name: f.name }; openChallenge(); }
 async function fightMenu() {
-  const sh = sheet(`<h3>Бой с друзьями</h3><p class="sub" style="text-align:center;margin:0 0 10px">Дерёшься с монстрами друзей до 3 побед. Друг узнает о бое и сможет ответить.</p>
+  const sh = sheet(`<h3>Бой с друзьями</h3><p class="sub" style="text-align:center;margin:0 0 10px">Живой бой до 3 побед: тапни по другу — бот позовёт его, и бой начнётся, когда вы оба нажмёте «Начать».</p>
   <div class="lb" id="fmL" style="max-height:44vh;overflow:auto"><div style="padding:16px;text-align:center;color:var(--t2)">${lbOn() ? 'Загружаем друзей...' : 'Список друзей работает, когда игра открыта в Telegram.'}</div></div>
-  <div class="stack" style="margin-top:12px"><button class="btn pink" id="fmInv">Позвать друга на бой</button><button class="btn gray" id="fmTop">Соперники из рейтинга</button><button class="btn ghost" id="fmX">Закрыть</button></div>`);
+  <div class="stack" style="margin-top:12px"><button class="btn pink" id="fmInv">Позвать друга по ссылке</button><button class="btn ghost" id="fmX">Закрыть</button></div>`);
   sh.querySelector('#fmX').onclick = closeSheet;
-  sh.querySelector('#fmInv').onclick = () => { closeSheet(); shareChallenge(act()); };
-  sh.querySelector('#fmTop').onclick = () => { closeSheet(); openTop('wins'); };
+  sh.querySelector('#fmInv').onclick = () => { closeSheet(); inviteFight(); };
   if (!lbOn()) return;
   try {
     const r = await api('/friends'); const L = sh.querySelector('#fmL'); if (!L) return; L.innerHTML = '';
-    if (!r.friends.length) L.innerHTML = '<div style="padding:16px;text-align:center;color:var(--t2)">Пока нет друзей. Отправь вызов — когда друг его примет, он появится здесь, и вы сможете драться сколько угодно.</div>';
+    if (!r.friends.length) L.innerHTML = '<div style="padding:16px;text-align:center;color:var(--t2)">Пока нет друзей. Позови друга по ссылке — после первого боя он появится здесь, и звать его можно будет одним тапом.</div>';
     r.friends.forEach(f => { const m = decodeMon(f.mon); if (!m) return; const d = document.createElement('button'); d.className = 'lbr'; d.appendChild(miniCanvas(m, 96));
       d.insertAdjacentHTML('beforeend', `<div class="nm"><div>${esc(f.name)}</div><small>${esc(m.name)} • ${speciesLabel(m)} • ур.${m.lv}</small></div><div class="v" style="font-size:14px">${f.w}:${f.l}</div>`);
-      d.onclick = () => { closeSheet(); fightFriend(f); }; L.appendChild(d); });
+      d.onclick = () => { closeSheet(); inviteFight(f.fid, f.name); }; L.appendChild(d); });
   } catch (e) { const L = sh.querySelector('#fmL'); if (L) L.innerHTML = '<div style="padding:16px;text-align:center;color:var(--t2)">Не удалось загрузить. Проверь интернет.</div>'; }
 }
 
