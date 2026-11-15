@@ -188,6 +188,7 @@ svg.i{width:1.15em;height:1.15em;stroke:currentColor;fill:none;stroke-width:2;st
   <div class="xpl"><span id="hLv"></span><span id="hNext"></span></div>
   <div class="row2" style="margin-top:16px"><button class="btn" id="hFight" data-i="swords">В бой</button><button class="btn gray" id="hTrain" data-i="target">Тренировка</button></div>
   <div class="list">
+    <button class="li" id="hGift"><i class="ic" style="--c:#30D158" data-i="gift"></i><span>Ежедневный подарок</span><small id="hGiftT"></small><em data-i="chevR"></em></button>
     <button class="li" id="hInc"><i class="ic" style="--c:#FFD60A" data-i="egg"></i><span>Инкубатор</span><small id="hIncT"></small><em data-i="chevR"></em></button>
     <button class="li" id="hTop"><i class="ic" style="--c:#FF9F0A" data-i="trophy"></i><span>Рейтинг игроков</span><small id="hTopT"></small><em data-i="chevR"></em></button>
     <button class="li" id="hChal"><i class="ic" style="--c:#FF375F" data-i="users"></i><span>Позвать друга на бой</span><em data-i="chevR"></em></button>
@@ -324,6 +325,7 @@ function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.c
 
 /* ================== ИКОНКИ (в стиле SF Symbols) ================== */
 const ICONS = {
+  gift: '<rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5v8h14v-8M12 8.5v12M12 8.5C10 4 6.5 4.5 7 7c.3 1.4 2.6 1.5 5 1.5zM12 8.5c2-4.5 5.5-4 5-1.5-.3 1.4-2.6 1.5-5 1.5z"/>',
   egg: '<path d="M12 3C8.5 3 5.5 8.5 5.5 13.5a6.5 6.5 0 0 0 13 0C18.5 8.5 15.5 3 12 3z"/><path d="M8.5 13l2 1.6 1.6-2 1.8 2 1.6-1.6"/>',
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   paw: '<circle cx="5.5" cy="10" r="2"/><circle cx="9.5" cy="5.5" r="2"/><circle cx="14.5" cy="5.5" r="2"/><circle cx="18.5" cy="10" r="2"/><path d="M12 12c-3 0-6 3.5-6 6.2C6 20 7.5 21 9 21c1.2 0 2-.6 3-.6s1.8.6 3 .6c1.5 0 3-1 3-2.8C18 15.5 15 12 12 12z"/>',
@@ -377,7 +379,10 @@ const QUIRKS = ['боится огурцов','ест носки по ночам
 const ACCS = [null,
   { id: 1, n: 'Бантик', p: 10, e: '🎀' }, { id: 2, n: 'Кепка', p: 15, e: '🧢' }, { id: 3, n: 'Тёмные очки', p: 15, e: '🕶️' },
   { id: 4, n: 'Наушники', p: 20, e: '🎧' }, { id: 5, n: 'Колпак', p: 10, e: '🥳' }, { id: 6, n: 'Золотая цепь', p: 30, e: '📿' },
-  { id: 7, n: 'Цветочек', p: 10, e: '🌸' }, { id: 8, n: 'Корона', p: 50, e: '👑' }];
+  { id: 7, n: 'Цветочек', p: 10, e: '🌸' }, { id: 8, n: 'Корона', p: 50, e: '👑' },
+  // бесплатные — открываются уровнем любого твоего монстра
+  { id: 9, n: 'Бандана', lv: 3, e: '🥷' }, { id: 10, n: 'Очки-авиаторы', lv: 6, e: '😎' }, { id: 11, n: 'Шлем викинга', lv: 10, e: '🪖' }, { id: 12, n: 'Монокль', lv: 15, e: '🧐' }];
+const maxLv = () => S.mons.reduce((a, m) => Math.max(a, m.lv), 1);
 const EFFS = [null,
   { id: 1, n: 'Искры', p: 20, e: '✨' }, { id: 2, n: 'Сердечки', p: 25, e: '💖' }, { id: 3, n: 'Пламя', p: 40, e: '🔥' },
   { id: 4, n: 'Радуга', p: 40, e: '🌈' }, { id: 5, n: 'Молнии', p: 40, e: '⚡' }];
@@ -472,7 +477,7 @@ function auInit() {
     setTimeout(() => auLoadVox && auLoadVox(), 0);
     AU.mus = c.createGain(); AU.mus.gain.value = 0; AU.mus.connect(AU.master);
     AU.fx = c.createGain(); AU.fx.gain.value = S.sfxOff ? 0 : SFX_VOL; AU.fx.connect(AU.master);
-    AU.revM = c.createConvolver(); AU.revM.buffer = auImpulse(3.8, 2.4); AU.revM.connect(AU.mus);
+    AU.revBufM = auImpulse(3.8, 2.4); AU.tb = mkBus();
     AU.revF = c.createConvolver(); AU.revF.buffer = auImpulse(1.8, 3); AU.revF.connect(AU.fx);
     const nb = c.createBuffer(1, c.sampleRate * 2, c.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; AU.noise = nb;
     setInterval(auTick, 40);
@@ -482,12 +487,14 @@ function auInit() {
 ['pointerdown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, auInit, { passive: true }));
 document.addEventListener('visibilitychange', () => { if (!AU.ctx) return; document.hidden ? AU.ctx.suspend() : AU.ctx.resume(); });
 if (tg && tg.onEvent) { try { tg.onEvent('deactivated', () => AU.ctx && AU.ctx.suspend()); tg.onEvent('activated', () => AU.ctx && AU.ctx.resume()); } catch (e) {} }
+// у каждой мелодии своя шина: при смене трека старые длинные ноты и хвост реверба глушатся, а не доигрывают поверх новой
+function mkBus() { const c = AU.ctx, g = c.createGain(); g.connect(AU.mus); const r = c.createConvolver(); r.buffer = AU.revBufM; r.connect(g); return { g, rev: r }; }
 function auSetMusic(name) {
   if (AU.want === name) return; AU.want = name;
   if (!AU.ctx) return;
   const c = AU.ctx, g = AU.mus.gain, now = c.currentTime, tok = ++AU.tok;
   g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(0.0001, now + 0.5);
-  setTimeout(() => { if (tok !== AU.tok) return; AU.track = name; AU.step = 0; AU.nt = c.currentTime + 0.08; const n2 = c.currentTime; g.cancelScheduledValues(n2); g.setValueAtTime(0.0001, n2); g.linearRampToValueAtTime(S.musicOff ? 0 : musVol(), n2 + 1.6); }, 560);
+  setTimeout(() => { if (tok !== AU.tok) return; const old = AU.tb; old.g.gain.cancelScheduledValues(c.currentTime); old.g.gain.setValueAtTime(0, c.currentTime); setTimeout(() => { try { old.g.disconnect(); old.rev.disconnect(); } catch (e) {} }, 300); AU.tb = mkBus(); AU.track = name; AU.step = 0; AU.nt = c.currentTime + 0.08; const n2 = c.currentTime; g.cancelScheduledValues(n2); g.setValueAtTime(0.0001, n2); g.linearRampToValueAtTime(S.musicOff ? 0 : musVol(), n2 + 1.6); }, 560);
 }
 function auDuck(sec) { if (!AU.ctx || S.musicOff) return; const g = AU.mus.gain, n = AU.ctx.currentTime; g.cancelScheduledValues(n); g.setValueAtTime(g.value, n); g.linearRampToValueAtTime(musVol() * 0.3, n + 0.15); g.setValueAtTime(musVol() * 0.3, n + sec); g.linearRampToValueAtTime(musVol(), n + sec + 0.8); }
 function auApplyVol() { if (!AU.ctx) return; const n = AU.ctx.currentTime; AU.mus.gain.cancelScheduledValues(n); AU.mus.gain.setTargetAtTime(S.musicOff ? 0 : musVol(), n, 0.15); AU.fx.gain.setTargetAtTime(S.sfxOff ? 0 : SFX_VOL, n, 0.05); }
@@ -501,7 +508,7 @@ function O(type, f, t) { const o = AU.ctx.createOscillator(); o.type = type; o.f
 function N(t, dur) { const s = AU.ctx.createBufferSource(); s.buffer = AU.noise; s.loop = true; s.start(t, Math.random()); s.stop(t + dur + 0.05); return s; }
 function G(v) { const g = AU.ctx.createGain(); g.gain.value = v; return g; }
 function F(type, f, q = 1) { const b = AU.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; }
-function out(node, bus, rev) { node.connect(bus === 'm' ? AU.mus : AU.fx); if (rev) { const g = G(rev); node.connect(g); g.connect(bus === 'm' ? AU.revM : AU.revF); } }
+function out(node, bus, rev) { node.connect(bus === 'm' ? AU.tb.g : AU.fx); if (rev) { const g = G(rev); node.connect(g); g.connect(bus === 'm' ? AU.tb.rev : AU.revF); } }
 function envD(g, t, v, a, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
 /* ---- инструменты ---- */
 function pad(freqs, t, dur, vol) {
@@ -1211,6 +1218,8 @@ function frontLayer(g, P, A) {
   if (P.f3 && P.m.sp !== 3) {}
   if (P.f0 && m.sp !== 0 && m.sp !== 1) { const { x, y } = A.mouth; horn(g, x - 8, y - 2, 16, 1.75, 0.15, 7, '#fffdf4', '#cdbb90'); horn(g, x + 6, y - 2, 13, 1.45, 0.15, 6, '#fffdf4', '#cdbb90'); }
   if (P.f2 && m.sp !== 2) { const { x, y } = A.neck; g.fillStyle = pal.acc; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 15, y - 9); g.lineTo(x - 15, y + 9); g.closePath(); g.moveTo(x, y); g.lineTo(x + 15, y - 9); g.lineTo(x + 15, y + 9); g.closePath(); g.fill(); g.lineWidth = 1.6; g.strokeStyle = pal.line; g.stroke(); circ(g, x, y, 4, pal.accLo); const e = A.eyes[A.eyes.length - 1]; g.beginPath(); g.arc(e.x, e.y, e.r * 1.35, 0, 7); g.lineWidth = 2.4; g.strokeStyle = '#ffcf40'; g.stroke(); }
+  if (m.acc === 10) { A.eyes.forEach(e => { g.beginPath(); g.moveTo(e.x - e.r * 1.3, e.y - e.r * 0.75); g.lineTo(e.x + e.r * 1.3, e.y - e.r * 0.75); g.quadraticCurveTo(e.x + e.r * 1.25, e.y + e.r * 1.2, e.x, e.y + e.r * 1.05); g.quadraticCurveTo(e.x - e.r * 1.3, e.y + e.r * 0.9, e.x - e.r * 1.3, e.y - e.r * 0.75); const lg = g.createLinearGradient(0, e.y - e.r, 0, e.y + e.r); lg.addColorStop(0, '#2a1a4a'); lg.addColorStop(1, '#ff8a3d'); g.fillStyle = lg; g.globalAlpha = 0.92; g.fill(); g.globalAlpha = 1; g.lineWidth = 2.4; g.strokeStyle = '#d9a520'; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(e.x - e.r * 0.8, e.y - e.r * 0.4); g.lineTo(e.x - e.r * 0.3, e.y - e.r * 0.4); g.stroke(); }); if (A.eyes.length > 1) { const [a, b] = A.eyes; g.beginPath(); g.moveTo(a.x + a.r * 1.3, a.y - a.r * 0.6); g.quadraticCurveTo((a.x + b.x) / 2, Math.min(a.y, b.y) - a.r * 1.1, b.x - b.r * 1.3, b.y - b.r * 0.6); g.lineWidth = 2.4; g.strokeStyle = '#d9a520'; g.stroke(); } }
+  if (m.acc === 12 && A.eyes.length) { const e = A.eyes[A.eyes.length - 1]; g.beginPath(); g.arc(e.x, e.y, e.r * 1.3, 0, 7); g.fillStyle = 'rgba(200,230,255,.18)'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#d9a520'; g.stroke(); g.lineWidth = 1.2; g.strokeStyle = '#7a5200'; g.stroke(); g.beginPath(); g.moveTo(e.x + e.r * 1.1, e.y + e.r * 0.7); g.quadraticCurveTo(e.x + e.r * 2, e.y + e.r * 2.6, e.x + e.r * 0.6, e.y + e.r * 3.6); g.setLineDash([2.5, 2]); g.lineWidth = 1.6; g.strokeStyle = '#d9a520'; g.stroke(); g.setLineDash([]); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1.5; g.beginPath(); g.arc(e.x, e.y, e.r * 0.95, Math.PI * 1.1, Math.PI * 1.45); g.stroke(); }
   if (m.acc === 3) { g.fillStyle = '#100a14'; A.eyes.forEach(e => { g.beginPath(); rr(g, e.x - e.r * 1.35, e.y - e.r * 0.8, e.r * 2.7, e.r * 1.6, e.r * 0.5); g.fill(); g.lineWidth = 1.6; g.strokeStyle = '#000'; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(e.x - e.r * 0.8, e.y - e.r * 0.35); g.lineTo(e.x - e.r * 0.2, e.y - e.r * 0.35); g.stroke(); }); if (A.eyes.length > 1) { const [a, b] = A.eyes; g.beginPath(); g.moveTo(a.x + a.r * 1.3, a.y - a.r * 0.3); g.lineTo(b.x - b.r * 1.3, b.y - b.r * 0.3); g.lineWidth = 2.5; g.strokeStyle = '#100a14'; g.stroke(); } }
   if (m.acc === 6) { const { x, y } = A.neck; g.beginPath(); g.moveTo(x - 30, y - 10); g.quadraticCurveTo(x, y + 22, x + 30, y - 10); g.setLineDash([5, 2.5]); g.lineWidth = 5; g.strokeStyle = '#ffcc33'; g.stroke(); g.setLineDash([]); circ(g, x, y + 12, 8, '#ffcc33'); g.lineWidth = 1.6; g.strokeStyle = '#7a5a00'; g.stroke(); g.fillStyle = '#8a6400'; g.font = '900 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', x, y + 13); }
   bodyMarks(g, P, A);
@@ -1219,7 +1228,7 @@ function frontLayer(g, P, A) {
   if (m.mut & 2) { horn(g, -12, T + 10, 24, -2.1, -0.4, 10, '#fff1d6', '#7e5e38'); horn(g, 8, T + 8, 26, -1.5, -0.4, 11, '#fff1d6', '#7e5e38'); }
   if (m.mut & 4) [-8, 8].forEach((x, i) => { const ex = x * 2.2 + Math.sin(t * 3 + i) * 4, ey = T - 30; g.beginPath(); g.moveTo(x, T + 4); g.quadraticCurveTo(x * 1.2, ey + 6, ex, ey); g.lineWidth = 2.4; g.strokeStyle = OUT; g.stroke(); g.save(); g.shadowColor = pal.accHi; g.shadowBlur = 10; circ(g, ex, ey, 5.5, pal.accHi); g.restore(); });
   if (m.mut & 1) eyeD(g, 6, T + 16, 8, P, { skin: pal.base });
-  const headFree = ![1, 2, 4, 5, 7, 8].includes(m.acc);
+  const headFree = ![1, 2, 4, 5, 7, 8, 9, 11].includes(m.acc);
   if (headFree || m.acc === 1 || m.acc === 7) { P.T = T; HAIRS[m.sp](P); }
   g.strokeStyle = OUT; g.lineWidth = 2;
   switch (m.acc) {
@@ -1228,6 +1237,16 @@ function frontLayer(g, P, A) {
     case 4: { g.beginPath(); g.ellipse(-4, T + 34, 30, 34, 0, Math.PI * 1.05, Math.PI * 1.95); g.lineWidth = 5; g.strokeStyle = '#22222e'; g.stroke(); g.beginPath(); rr(g, -22, T + 26, 16, 24, 6); g.fillStyle = pal.acc; g.fill(); g.lineWidth = 2; g.strokeStyle = OUT; g.stroke(); break; }
     case 5: { const by = T + 6; g.save(); g.beginPath(); g.moveTo(-15, by); g.lineTo(15, by); g.lineTo(6, by - 38); g.closePath(); g.fillStyle = '#4dd2ff'; g.fill(); g.clip(); g.fillStyle = '#ffd34d'; for (let i = 0; i < 4; i++) g.fillRect(-20, by - 6 - i * 10, 40, 4); g.restore(); g.beginPath(); g.moveTo(-15, by); g.lineTo(15, by); g.lineTo(6, by - 38); g.closePath(); g.stroke(); circ(g, 6, by - 39, 4.5, '#ff6fb5'); g.stroke(); break; }
     case 7: drawFlower(g, -14, T + 6, 10, '#ffb3d1', '#ffd34d'); break;
+    case 9: { // бандана
+      g.save(); g.lineCap = 'round'; g.beginPath(); g.arc(0, T + 66, 60, Math.PI * 1.3, Math.PI * 1.7); g.lineWidth = 13; g.strokeStyle = OUT; g.stroke(); g.lineWidth = 10; g.strokeStyle = '#e8203a'; g.stroke();
+      g.fillStyle = '#fff'; for (let i = 0; i < 5; i++) { const a = Math.PI * (1.34 + i * 0.08); circ(g, Math.cos(a) * 60, T + 66 + Math.sin(a) * 60, 1.6, '#fff'); }
+      const kx = -35, ky = T + 18; [[-14, 10, -0.3], [-10, 20, 0.2]].forEach(([dx, dy]) => { g.beginPath(); g.moveTo(kx, ky); g.quadraticCurveTo(kx + dx * 0.4, ky + dy * 0.3, kx + dx, ky + dy); g.lineWidth = 8; g.strokeStyle = OUT; g.stroke(); g.lineWidth = 5.5; g.strokeStyle = '#e8203a'; g.stroke(); });
+      circ(g, kx, ky, 4.5, '#c41830'); g.lineWidth = 1.5; g.strokeStyle = OUT; g.stroke(); g.restore(); break; }
+    case 11: { // шлем викинга
+      const by = T + 14; [-1, 1].forEach(sd => { g.beginPath(); g.moveTo(sd * 20, by - 8); g.quadraticCurveTo(sd * 44, by - 12, sd * 42, by - 40); g.quadraticCurveTo(sd * 36, by - 20, sd * 18, by - 18); g.closePath(); const hg = g.createLinearGradient(0, by - 40, 0, by); hg.addColorStop(0, '#fffbe8'); hg.addColorStop(1, '#d8c79a'); g.fillStyle = hg; g.fill(); g.lineWidth = 2; g.strokeStyle = OUT; g.stroke(); });
+      g.beginPath(); g.arc(0, by, 26, Math.PI, 0); g.closePath(); const mg = g.createLinearGradient(-20, by - 26, 20, by); mg.addColorStop(0, '#e8ecf4'); mg.addColorStop(0.5, '#9aa3b8'); mg.addColorStop(1, '#5a6276'); g.fillStyle = mg; g.fill(); g.lineWidth = 2.2; g.strokeStyle = OUT; g.stroke();
+      g.beginPath(); rr(g, -28, by - 5, 56, 8, 3); g.fillStyle = '#b07a2a'; g.fill(); g.stroke(); for (let i = -2; i <= 2; i++) circ(g, i * 10, by - 1, 1.8, '#ffe39a');
+      g.beginPath(); g.moveTo(0, by - 26); g.lineTo(0, by - 5); g.lineWidth = 5; g.strokeStyle = '#b07a2a'; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 2; g.beginPath(); g.arc(-4, by - 4, 18, Math.PI * 1.15, Math.PI * 1.45); g.stroke(); break; }
     case 8: { const by = T + 8, w = 18, h = 18; g.beginPath(); g.moveTo(-w, by); g.lineTo(-w, by - h * 0.6); g.lineTo(-w * 0.5, by - h * 0.25); g.lineTo(0, by - h); g.lineTo(w * 0.5, by - h * 0.25); g.lineTo(w, by - h * 0.6); g.lineTo(w, by); g.closePath(); const cg = g.createLinearGradient(0, by - h, 0, by); cg.addColorStop(0, '#fff2a8'); cg.addColorStop(1, '#d99a00'); g.fillStyle = cg; g.fill(); g.stroke(); circ(g, 0, by - h * 0.35, 3, '#ff3b6b'); circ(g, -w * 0.6, by - h * 0.2, 2.2, '#3bd1ff'); circ(g, w * 0.6, by - h * 0.2, 2.2, '#3bd1ff'); break; }
   }
   if (headFree) {
@@ -1493,7 +1512,7 @@ function renderHome() {
   $('#hCoins').innerHTML = svgI('coin') + S.coins; $('#hRec').innerHTML = svgI('trophy') + S.wins;
   const many = S.mons.length > 1; $('#hPrev').classList.toggle('hidden', !many); $('#hNextMon').classList.toggle('hidden', !many);
   $('#hDots').innerHTML = many ? S.mons.slice(0, 12).map((x, i) => `<i class="${i === S.active ? 'on' : ''}"></i>`).join('') : '';
-  $('#hName').textContent = m.name; incLabel();
+  $('#hName').textContent = m.name; incLabel(); giftLabel();
   const st = stageOf(m.lv);
   $('#hTag').textContent = `${speciesLabel(m)}${m.sp2 >= 0 && m.sp2 !== m.sp ? ' (гибрид)' : ''} • ${STAGES[st].name}`;
   $('#hQuirk').textContent = 'Характер: ' + quirkOf(m);
@@ -1700,7 +1719,8 @@ function jubSound() { if (!eggOk()) return; const t = AU.ctx.currentTime; [0, 4,
 let jubBusy = false;
 function checkJubilee() {
   if (jubBusy || cur !== 'home' || $('#ov').classList.contains('on') || $('#evo').classList.contains('on')) return;
-  const m = S.mons.find(x => jubTier(x) > (x.jc || 0)); if (!m) return;
+  const m = S.mons.find(x => jubTier(x) > (x.jc || 0));
+  if (!m) { const gs = giftState(); if (gs.ready && S.giftShown !== dayKey() && Date.now() - Math.min(...S.mons.map(x => x.born || Date.now())) > 6e5) { S.giftShown = dayKey(); save(); giftSheet(); } return; }
   const jt = jubTier(m), J = JUBS[jt]; m.jc = jt; save(); jubBusy = true;
   const sh = sheet(`<h3>${J.e} ${J.t}!</h3><canvas id="jbC" style="width:100%;height:240px;display:block"></canvas>
   <p style="text-align:center;margin:4px 0 2px;font-size:15px"><b>${esc(m.name)}</b> живёт с тобой уже ${ageDays(m)} ${dayWord(ageDays(m))}.</p>
@@ -1742,6 +1762,26 @@ function rarePick(sk) {
     g.appendChild(b);
   });
 }
+
+/* ================== ЕЖЕДНЕВНЫЙ ПОДАРОК ================== */
+const GIFTS = [{ e: '🪙', n: '60 монет', f: () => { S.coins += 60; } }, { e: '⭐', n: '+60 опыта', f: () => gainXp(act(), 60) }, { e: '🪙', n: '120 монет', f: () => { S.coins += 120; } },
+  { e: '⭐', n: '+100 опыта', f: () => gainXp(act(), 100) }, { e: '🪙', n: '180 монет', f: () => { S.coins += 180; } }, { e: '💪', n: '+1 выносливость', f: () => { const m = act(); m.sta = Math.min(STA_MAX, (m.sta || 0) + 1); } },
+  { e: '🥚', n: 'Бесплатное яйцо', f: () => { S.eggCr = (S.eggCr || 0) + 1; } }];
+const dayKey = (d = new Date()) => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+function giftState() { const g = S.gift || { day: '', streak: 0 }, today = dayKey(), y = dayKey(new Date(Date.now() - DAY)); const ready = g.day !== today; const next = ready ? (g.day === y ? g.streak % 7 + 1 : 1) : g.streak; return { ready, next, g }; }
+function giftLabel() { const el = $('#hGiftT'); if (!el) return; const st = giftState(); el.className = st.ready ? 'rdy' : ''; el.textContent = st.ready ? 'забрать!' : 'завтра ещё'; }
+function giftSheet() {
+  const st = giftState();
+  const cells = GIFTS.map((x, i) => { const d = i + 1, got = st.ready ? d < st.next : d <= st.next, now = st.ready && d === st.next; return `<div style="${now ? 'background:rgba(48,209,88,.22);outline:2px solid #30D158' : ''}" class="${got || now ? '' : 'lock'}">${got ? '✅' : x.e}<small>день ${d}</small></div>`; }).join('');
+  const sh = sheet(`<h3>Ежедневный подарок</h3><p class="sub" style="text-align:center;margin:0">Заходи каждый день — подарки растут. На 7-й день бесплатное яйцо!</p>
+  <div class="awards" style="grid-template-columns:repeat(7,1fr)">${cells}</div>
+  <p style="text-align:center;font-size:16px;margin:8px 0 4px">${st.ready ? `Сегодня: <b>${GIFTS[st.next - 1].e} ${GIFTS[st.next - 1].n}</b>` : 'Подарок за сегодня уже получен. Приходи завтра!'}</p>
+  <p class="sub" style="text-align:center;font-size:12px;margin:0">Пропустишь день — серия начнётся заново.</p>
+  <div class="stack"><button class="btn mint" id="gfGo" ${st.ready ? '' : 'disabled'}>Забрать</button><button class="btn ghost" id="gfX">Закрыть</button></div>`);
+  sh.querySelector('#gfX').onclick = closeSheet;
+  sh.querySelector('#gfGo').onclick = () => { const s2 = giftState(); if (!s2.ready) return; const G2 = GIFTS[s2.next - 1]; G2.f(); S.gift = { day: dayKey(), streak: s2.next }; save(); hapN('success'); jubSound(); closeSheet(); toast(`${G2.e} ${G2.n}!`, 2000); renderHome(); if (s2.next === 7) setTimeout(() => toast('Яйцо ждёт в инкубаторе 🥚', 2400), 2100); };
+}
+$('#hGift').onclick = giftSheet;
 
 /* ================== ИНКУБАТОР ================== */
 const EGG_CD = 72 * 3600e3; // бесплатное яйцо раз в 3 дня
@@ -1798,7 +1838,8 @@ function renderShop() {
   }
   if (shopTab === 'acc') {
     add('🚫', 'Без аксессуара', m.acc === 0 ? 'on' : 'own', m.acc === 0 ? 'Надето' : 'Снять', () => { m.acc = 0; save(); renderShop(); });
-    ACCS.slice(1).forEach(a => { const own = S.own.acc.includes(a.id); const on = m.acc === a.id; add(a.e, a.n, on ? 'on' : own ? 'own' : '', on ? 'Надето' : own ? 'Надеть' : `${a.p} ⭐`, () => { if (own) { m.acc = on ? 0 : a.id; save(); renderShop(); } else buyItem('acc_' + a.id); }); });
+    ACCS.slice(1).filter(a => a.lv).forEach(a => { const open = maxLv() >= a.lv, on = m.acc === a.id; add(a.e, a.n, on ? 'on' : 'own', on ? 'Надето' : open ? 'Надеть' : `🔒 ур. ${a.lv}`, () => { if (!open) return toast(`Бесплатно откроется, когда любой монстр дорастёт до ур. ${a.lv}`, 2400); m.acc = on ? 0 : a.id; save(); renderShop(); hap(); }); });
+    ACCS.slice(1).filter(a => !a.lv).forEach(a => { const own = S.own.acc.includes(a.id); const on = m.acc === a.id; add(a.e, a.n, on ? 'on' : own ? 'own' : '', on ? 'Надето' : own ? 'Надеть' : `${a.p} ⭐`, () => { if (own) { m.acc = on ? 0 : a.id; save(); renderShop(); } else buyItem('acc_' + a.id); }); });
   } else if (shopTab === 'eff') {
     add('🚫', 'Без эффекта', m.eff === 0 ? 'on' : 'own', m.eff === 0 ? 'Выбрано' : 'Убрать', () => { m.eff = 0; save(); renderShop(); });
     EFFS.slice(1).forEach(a => { const own = S.own.eff.includes(a.id); const on = m.eff === a.id; add(a.e, a.n, on ? 'on' : own ? 'own' : '', on ? 'Выбрано' : own ? 'Выбрать' : `${a.p} ⭐`, () => { if (own) { m.eff = on ? 0 : a.id; save(); renderShop(); } else buyItem('eff_' + a.id); }); });
@@ -2672,7 +2713,7 @@ function decodeMon(s) {
     const b = unb64u(s); const c0 = b[0], all = b.slice(1); let c = 7; all.forEach((x, i) => c = (c * 31 + x + i) & 255);
     if (c !== c0 || all.length < 13) return null;
     let [sp, sp2, lv, h1, h2, pat, eye, mouth, acc, eff, mut, s1, s2] = all; const mt = pat >> 4, jt = mut >> 5, skin = eye >> 4; pat &= 15; mut &= 31; eye &= 15;
-    if (sp > 5 || pat > 4 || eye > 4 || mouth > 4 || acc > 8 || eff > 5) return null;
+    if (sp > 5 || pat > 4 || eye > 4 || mouth > 4 || acc > 12 || eff > 5) return null;
     const name = new TextDecoder().decode(new Uint8Array(all.slice(13))) || 'Монстр';
     return Object.assign(newMon(sp, { sp2: sp2 === 7 ? -1 : sp2, lv: Math.max(1, lv), h1: h1 * 2, h2: h2 * 2, pat, eye, mouth, acc, eff, mut, seed: (s1 << 8) | s2, name }), { id: 'chal', mt, jt, skin: skin <= 4 ? skin : 0 });
   } catch (e) { return null; }
