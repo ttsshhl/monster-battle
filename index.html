@@ -3093,6 +3093,7 @@ function shareMedia(blob, ext, kind, m) {
   syncPurchases(1);
   if (pendingChallenge) openChallenge();
   else if (pendingParam) resolveParam(pendingParam);
+  if (lbOn()) setTimeout(() => api('/hello', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Init-Data': tg.initData }, body: JSON.stringify({ mons: S.mons.length, lv: S.mons.length ? maxLv() : 0, wins: S.wins || 0, sp: pendingParam || '' }) }).catch(() => {}), 1500);
 })();
 </script>
 </body>
